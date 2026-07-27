@@ -16,15 +16,6 @@ export interface HandoffDecision {
   reason: string;
 }
 
-// Public apply hosts of ATS platforms with official public job-board APIs.
-const ATS_PUBLIC_HOSTS = [
-  "boards.greenhouse.io",
-  "job-boards.greenhouse.io",
-  "jobs.lever.co",
-  "jobs.eu.lever.co",
-  "jobs.ashbyhq.com",
-];
-
 const PRIVATE_HOST_PATTERNS = [
   /^localhost$/i,
   /^127\./,
@@ -37,13 +28,6 @@ const PRIVATE_HOST_PATTERNS = [
   /\.local$/i,
   /\.internal$/i,
 ];
-
-/** hostname matches an allowlist entry exactly or as a subdomain of it. */
-function hostMatches(hostname: string, entry: string): boolean {
-  const h = hostname.toLowerCase();
-  const e = entry.toLowerCase();
-  return h === e || h.endsWith(`.${e}`);
-}
 
 function stripTracking(url: URL): void {
   const toDelete: string[] = [];
@@ -78,13 +62,14 @@ export function normalizeApplicationUrl(rawUrl: string): string | null {
 
 /**
  * Evaluate whether an application URL may be handed to the user for manual
- * review. `allowedDomains` is the explicit allowlist (careers-page and
- * discovery-source domains); public hosts of supported ATS platforms are
- * always considered allowlisted.
+ * review. Any public https URL is accepted — there is no domain allowlist.
+ * The remaining checks are safety-only: https-only, no embedded credentials,
+ * and no private/local hosts. `allowedDomains` is retained for call-site
+ * compatibility and is ignored.
  */
 export function evaluateHandoff(
   rawUrl: string,
-  allowedDomains: string[]
+  _allowedDomains: string[] = []
 ): HandoffDecision {
   let url: URL;
   try {
@@ -130,20 +115,10 @@ export function evaluateHandoff(
     };
   }
 
-  const allowlist = [...ATS_PUBLIC_HOSTS, ...allowedDomains];
-  if (!allowlist.some((entry) => hostMatches(domain, entry))) {
-    return {
-      allowed: false,
-      url: normalized,
-      domain,
-      reason: `Domain "${domain}" is not on the apply allowlist`,
-    };
-  }
-
   return {
     allowed: true,
     url: normalized,
     domain,
-    reason: "Domain is allowlisted; open and submit manually in your browser",
+    reason: "URL accepted; open and submit manually in your browser",
   };
 }

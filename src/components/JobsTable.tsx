@@ -153,9 +153,16 @@ export function JobsTable({ jobs, now }: { jobs: JobView[]; now: number }) {
 
               {isOpen && (
                 <div className="animate-fade-in border-t border-hair bg-canvas/50 px-14 py-4">
-                  <p className="max-w-3xl text-sm leading-relaxed text-zinc-400">
-                    {job.description ?? "No description captured."}
-                  </p>
+                  {job.description ? (
+                    <p className="max-h-72 max-w-3xl overflow-auto whitespace-pre-line text-sm leading-relaxed text-zinc-400">
+                      {job.description}
+                    </p>
+                  ) : (
+                    <p className="max-w-3xl text-sm leading-relaxed text-zinc-500">
+                      This source doesn&apos;t include the description — open the
+                      employer&apos;s posting below to read the full role.
+                    </p>
+                  )}
                   <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-zinc-500">
                     <span>
                       Source: <span className="text-zinc-300">{job.source}</span>

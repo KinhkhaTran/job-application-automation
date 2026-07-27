@@ -9,6 +9,7 @@
 export type ProvenanceSource =
   | "resume-library" // picked from the local résumé version list
   | "generated-template" // drafted locally from a template
+  | "generated-llm" // drafted on demand by the model
   | "stored-profile" // answers the user configured once
   | "posting"; // taken from the scraped posting
 
@@ -62,15 +63,17 @@ export function buildProvenance(input: ProvenanceInput): PacketProvenance[] {
     {
       field: "coverLetter",
       label: "Cover letter",
-      source: "generated-template",
-      // A template draft is never submission-ready without a human read.
+      // Empty until the user asks for a draft; once drafted it comes from the
+      // model (or their own edits).
+      source: input.coverLetter.trim() === "" ? "generated-template" : "generated-llm",
+      // A draft is never submission-ready without a human read.
       needsUserInput: true,
       note:
         input.coverLetter.trim() === ""
-          ? "Cover letter is empty — write it before applying."
+          ? "No cover letter yet — generate a draft or write one before applying."
           : PLACEHOLDER.test(input.coverLetter)
-            ? "Template draft still contains placeholders — fill them in and read it end to end."
-            : "Template draft — read it end to end and personalize before you submit.",
+            ? "Draft still contains placeholders — fill them in and read it end to end."
+            : "AI draft — read it end to end and personalize before you submit.",
     },
     {
       field: "applicationUrl",
@@ -78,8 +81,8 @@ export function buildProvenance(input: ProvenanceInput): PacketProvenance[] {
       source: "posting",
       needsUserInput: !input.handoffAllowed,
       note: input.handoffAllowed
-        ? "Normalized from the scraped posting URL and checked against the apply allowlist."
-        : "URL is not on the apply allowlist — verify the real posting yourself before applying.",
+        ? "Normalized from the scraped posting URL (https, credential-free, public host)."
+        : "URL failed a safety check (must be https, credential-free, and a public host) — verify the real posting yourself before applying.",
     },
   ];
 

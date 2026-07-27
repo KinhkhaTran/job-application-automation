@@ -46,19 +46,22 @@ describe("evaluateHandoff — allowed", () => {
   });
 });
 
+describe("evaluateHandoff — no allowlist (all public https URLs allowed)", () => {
+  it("allows any public https domain, allowlist argument ignored", () => {
+    for (const url of [
+      "https://evil.example.net/jobs/1",
+      "https://notstripe.com/jobs/1",
+      "https://www.amazon.jobs/jobs/10481932/apply",
+      "https://careers.some-random-company.io/openings/42",
+    ]) {
+      expect(evaluateHandoff(url, ALLOWLIST).allowed).toBe(true);
+      expect(evaluateHandoff(url, []).allowed).toBe(true);
+    }
+  });
+});
+
 describe("evaluateHandoff — blocked", () => {
-  it("blocks domains not on the allowlist", () => {
-    const d = evaluateHandoff("https://evil.example.net/jobs/1", ALLOWLIST);
-    expect(d.allowed).toBe(false);
-    expect(d.reason).toContain("not on the apply allowlist");
-  });
-
-  it("does not allow lookalike suffix domains", () => {
-    const d = evaluateHandoff("https://notstripe.com/jobs/1", ALLOWLIST);
-    expect(d.allowed).toBe(false);
-  });
-
-  it("blocks plain-http URLs even on allowlisted domains", () => {
+  it("blocks plain-http URLs", () => {
     const d = evaluateHandoff("http://stripe.com/jobs/1", ALLOWLIST);
     expect(d.allowed).toBe(false);
     expect(d.reason).toContain("https");

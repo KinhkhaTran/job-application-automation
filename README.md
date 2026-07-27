@@ -83,9 +83,18 @@ Setup: set `JOBSPY_SECRET` (and `CRON_SECRET`) in the deployment. The function U
 
 > **ToS note:** unlike the official ATS APIs, these boards' terms restrict automated scraping. This feed is opt-in and scoped to a personal, single-user job search. Enable only the sources you're comfortable with in `config/jobspy.ts`.
 
+## Add a job by URL
+
+Besides scheduled discovery, you can pull in a single posting from the **Jobs** page → **Add job by URL**. Paste any `https` job link and the app fetches the public page and normalizes it (`POST /api/ingest` → `src/lib/discovery/ingestUrl.ts`):
+
+- **amazon.jobs** is read through its public per-job JSON endpoint (`/en/jobs/{id}.json`).
+- Everything else is parsed from a JSON-LD `JobPosting` block, falling back to `og:`/`<meta>` tags.
+
+The posting is classified (new-grad / years-of-experience), deduplicated by URL, and shown in the table. This only **reads** a public page — it never logs in, fills, or submits. The dashboard also ships seeded with one real posting (the amazon.jobs *EFA Network Software Engineer I* role) so there is something to look at before your first scan.
+
 ## Application review and handoff — safety boundaries
 
-Applying stays **fully manual**. When a packet is prepared, the posting URL is normalized (credentials stripped, tracking parameters removed) and checked against an allowlist (configured careers domains + public ATS apply hosts, HTTPS only, no private hosts).
+When a packet is prepared, the posting URL is normalized (credentials stripped, tracking parameters removed) and run through safety-only checks: **any public URL is accepted** — there is no domain allowlist — provided it is HTTPS, carries no embedded credentials, and does not resolve to a private/local host.
 
 ### Review flow
 
@@ -96,14 +105,35 @@ Applying stays **fully manual**. When a packet is prepared, the posting URL is n
 5. Only after approval, click **Open application**. The server rechecks the fingerprint and allowlist, then returns the URL for you to open in your own browser.
 6. Complete the employer’s form yourself, review every field and legal attestation, and submit manually. Mark the posting as submitted afterward.
 
-Editing or regenerating the résumé, cover letter, screening answers, or URL invalidates the previous approval. Approval is **not** submission and never fills, clicks, or sends anything to a third-party ATS. There is no bulk approval path.
+Editing or regenerating the résumé, cover letter, screening answers, or URL invalidates the previous approval. Approval is **not** submission. There is no bulk approval path.
+
+### Assisted autofill (local only, stops before submit)
+
+Once a packet is **approved**, the review panel offers **Autofill in browser** (`POST /api/apply/autofill`). Reusing the exact same approval gate as the manual open, it launches a **visible browser on your own machine** (via Playwright), navigates to the approved application URL, and fills the fields it can map from your profile (name, email, phone, location, LinkedIn/GitHub/website, and — if configured — your résumé file). It then **stops and hands the window back to you**: it never locates or clicks Submit. You review every field, complete anything left blank, and submit yourself.
+
+Setup (one time):
+
+```bash
+npm i -D playwright        # if not already installed
+npm run autofill:install   # downloads the Chromium browser
+```
+
+Optional env var (see `.env.example`):
+
+- `AUTOFILL_RESUME_PATH` — absolute path to a résumé file to auto-upload to the first file input on the form.
+
+Notes and caveats:
+
+- Autofill only runs **locally** (`npm run dev`). The endpoint refuses to run in a serverless/production deployment, where there is no browser window (override with `ENABLE_LOCAL_AUTOFILL` only if you know what you are doing).
+- Sites still requiring sign-in (e.g. amazon.jobs) will show their login page in the launched window — log in there yourself; the assistant does not handle credentials.
+- Driving a third-party site with a browser may conflict with that site's Terms of Service. You are responsible for that call; the risk is on your own account. The assistant deliberately never presses Submit.
 
 Hard boundaries, by design:
 
 - No automated login, account creation, or CAPTCHA interaction anywhere.
 - No credential handling: passwords are never read, stored, logged, or sent.
-- No automated application submission to Workday, Greenhouse, Lever, Ashby, or any other ATS.
-- Discovery reads only public listings for sources you explicitly configure: official ATS APIs (Greenhouse/Lever/Ashby) and, opt-in, public job boards via JobSpy (Indeed/Google/ZipRecruiter/Glassdoor — never LinkedIn). No listing source logs in, submits, or writes to any third party.
+- No automated **submission**: autofill fills fields but never clicks Submit — the human always submits.
+- Discovery and ingest read only public listings/pages: official ATS APIs (Greenhouse/Lever/Ashby), opt-in public boards via JobSpy (Indeed/Google/ZipRecruiter/Glassdoor — never LinkedIn), and single URLs you paste in. No listing source logs in, submits, or writes to any third party.
 
 The project uses Next.js App Router, TypeScript, Drizzle/Postgres, Tailwind CSS, Vercel Cron, and an LLM provider planned for later application-packet drafting. The database provider choice remains a documented follow-up decision.
 

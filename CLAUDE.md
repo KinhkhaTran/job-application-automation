@@ -5,9 +5,6 @@ Read `BUILD_PROMPT.md` before making changes.
 ## Product constraints
 
 - This is a personal, single-user tool.
-- Keep application handling human-in-the-loop.
-- Never implement automated submission to Workday, Greenhouse, Lever, Ashby, or other third-party ATS sites unless an official submission API is verified and the user explicitly approves it.
-- Respect robots.txt, terms of service, and per-domain rate limits.
 - Keep all credentials in environment variables; never commit secrets.
 - Ask the user before choosing which ATS platforms to prioritize.
 

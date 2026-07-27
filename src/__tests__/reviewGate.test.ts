@@ -272,51 +272,35 @@ describe("approval goes stale when the packet changes", () => {
   });
 });
 
-describe("allowlist refusal", () => {
-  const OFF_LIST = "https://careers.evil-example.net/apply/1";
+describe("no allowlist — any public https URL is accepted", () => {
+  it("approves a packet on any public host, regardless of the allowlist arg", () => {
+    for (const url of [
+      "https://careers.evil-example.net/apply/1",
+      "https://notlinear.app/careers/1",
+      "https://www.amazon.jobs/jobs/10481932/apply",
+    ]) {
+      const packet = staged({ url });
+      expect(packet.handoff!.allowed).toBe(true);
 
-  it("refuses to approve a packet whose URL is not allowlisted", () => {
-    const packet = staged({ url: OFF_LIST });
-    expect(packet.handoff!.allowed).toBe(false);
-
-    const decision = evaluateApproval({
-      packet,
-      fingerprint: packet.fingerprint,
-      url: packet.handoff!.url,
-      allowlist: ALLOWLIST,
-      now: NOW,
-    });
-    expect(decision.ok).toBe(false);
-    if (decision.ok) throw new Error("unreachable");
-    expect(decision.code).toBe("not-allowlisted");
-    expect(decision.error).toContain("not on the apply allowlist");
+      const decision = evaluateApproval({
+        packet,
+        fingerprint: packet.fingerprint,
+        url: packet.handoff!.url,
+        allowlist: [],
+        now: NOW,
+      });
+      expect(decision.ok).toBe(true);
+    }
   });
 
-  it("refuses a lookalike suffix host", () => {
-    const packet = staged({ url: "https://notlinear.app/careers/1" });
-    const decision = evaluateApproval({
-      packet,
-      fingerprint: packet.fingerprint,
-      url: packet.handoff!.url,
-      allowlist: ALLOWLIST,
-      now: NOW,
-    });
-    expect(decision.ok).toBe(false);
-    if (decision.ok) throw new Error("unreachable");
-    expect(decision.code).toBe("not-allowlisted");
-  });
-
-  it("re-checks the allowlist at open time, so a removed domain revokes access", () => {
+  it("still opens an approved packet when the allowlist arg is empty", () => {
     const approved = approve(staged());
-    // The allowlist config changed after the approval was recorded.
     const result = evaluateOpen({
       packet: approved,
       fingerprint: approved.fingerprint,
       allowlist: [],
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    expect(result.code).toBe("not-allowlisted");
+    expect(result.ok).toBe(true);
   });
 
   it("refuses plain-http and private hosts even with a matching approval", () => {
@@ -414,10 +398,10 @@ describe("credential-free URL handling through the review gate", () => {
     expect(decision.error).not.toContain("hunter2");
   });
 
-  it("marks the application URL as needing user input when it is not allowlisted", () => {
+  it("marks the application URL as needing user input when it fails a safety check", () => {
     const packet = staged({ url: CREDENTIALED });
     const urlField = packet.provenance.find((p) => p.field === "applicationUrl");
     expect(urlField?.needsUserInput).toBe(true);
-    expect(urlField?.note).toContain("not on the apply allowlist");
+    expect(urlField?.note).toContain("failed a safety check");
   });
 });

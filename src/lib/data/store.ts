@@ -16,10 +16,13 @@ import {
   evaluateOpen,
   type RefusalCode,
 } from "@/lib/apply/review";
-import { draftCoverLetter } from "@/lib/apply/coverLetter";
+import { generateCoverLetter } from "@/lib/apply/coverLetter";
 import { runDiscovery } from "@/lib/discovery/run";
 import { persistDiscovery } from "@/lib/discovery/persist";
 import { fetchSimplifyListings, persistSimplify } from "@/lib/discovery/simplify";
+import { ingestJobUrl, type IngestedPosting } from "@/lib/discovery/ingestUrl";
+import { computeDedupHash } from "@/lib/scrapers/dedup";
+import { SEED_POSTINGS, SHOULD_SEED } from "./seed";
 import { DISCOVERY_SOURCES } from "../../../config/discovery";
 import { db, hasDb, companies, postings, applications } from "@/lib/db";
 import type { Application, Company, Posting } from "@/lib/db";
@@ -49,9 +52,49 @@ const g = globalThis as unknown as { __jobStore?: StoreState };
 
 function store(): StoreState {
   if (!g.__jobStore) {
-    g.__jobStore = { jobs: [] };
+    const state: StoreState = { jobs: [] };
+    if (SHOULD_SEED) {
+      let id = 1;
+      let companyId = 1;
+      const now = Date.now();
+      for (const p of SEED_POSTINGS) {
+        state.jobs.push(ingestedToJobView(p, id++, companyId++, now));
+      }
+    }
+    g.__jobStore = state;
   }
   return g.__jobStore;
+}
+
+/** Map a freshly-ingested posting into a UI JobView (in-memory mode). */
+function ingestedToJobView(
+  p: IngestedPosting,
+  id: number,
+  companyId: number,
+  now: number
+): JobView {
+  return {
+    id,
+    companyId,
+    company: p.companyName,
+    atsType: "custom",
+    title: p.title,
+    url: p.url,
+    location: p.location,
+    description: p.description,
+    source: p.source,
+    postedDate: p.postedAt,
+    foundDate: new Date(now).toISOString(),
+    isNewGrad: p.isNewGrad,
+    requiredYearsMin: p.requiredYearsMin,
+    status: "new",
+    matchScore: scoreJob({
+      title: p.title,
+      isNewGrad: p.isNewGrad,
+      requiredYearsMin: p.requiredYearsMin,
+    }),
+    application: null,
+  };
 }
 
 const byScoreDesc = (a: JobView, b: JobView) => b.matchScore - a.matchScore;
@@ -314,10 +357,13 @@ export async function prepareApplication(
 
   // stagePacket clears any prior approval, so regenerating a packet always
   // requires a fresh human approval.
+  // The cover letter is left empty on purpose: drafting it spends model tokens,
+  // so it happens only when the user asks for it in the review gate (see
+  // generateApplicationCoverLetter), not for every posting we stage.
   const packet = stagePacket(
     {
       resumeVersion: pickResumeVersion(job),
-      coverLetter: draftCoverLetter(job.company, job.title),
+      coverLetter: "",
       screeningAnswers: DEFAULT_SCREENING_ANSWERS.map((qa) => ({ ...qa })),
     },
     await packetContext(job),
@@ -457,6 +503,46 @@ export async function editApplication(
 
   job.application = packet;
   return { ok: true, job };
+}
+
+/**
+ * Draft (or redraft) the cover letter for a staged packet with the LLM. This is
+ * the only token-spending step in the pipeline, so it runs only when the user
+ * asks for it. The generated letter is applied as a packet edit, which — like
+ * any edit — drops the approval and re-fingerprints, so the fresh draft must be
+ * reviewed and approved before it can be handed off.
+ */
+export async function generateApplicationCoverLetter(
+  id: number,
+  fingerprint: string,
+  now: number
+): Promise<EditResult> {
+  const job = await getJob(id);
+  if (!job) return { ok: false, error: "Posting not found" };
+  const current = job.application;
+  if (!current) {
+    return { ok: false, error: "No application packet is staged for this posting." };
+  }
+  if (current.status === "submitted") {
+    return { ok: false, error: "This application is already marked as submitted." };
+  }
+  // Guard against drafting onto a packet that changed since the user was
+  // looking at it — same staleness contract as approve/open.
+  if (current.fingerprint !== fingerprint) {
+    return {
+      ok: false,
+      error: "This packet changed since you opened it — reopen the review and try again.",
+    };
+  }
+
+  const coverLetter = await generateCoverLetter({
+    company: job.company,
+    role: job.title,
+    location: job.location,
+    description: job.description,
+  });
+
+  return editApplication(id, { coverLetter }, now);
 }
 
 export interface ApproveResult {
@@ -702,4 +788,134 @@ export async function runScan(now: number): Promise<ScanResult> {
   }
 
   return { found: result.totals.postingsFound, added, jobs: await listJobs() };
+}
+
+export interface IngestResult {
+  ok: boolean;
+  job?: JobView;
+  created?: boolean; // false when an existing posting for this URL was refreshed
+  error?: string;
+}
+
+/**
+ * Ingest a single job URL the user pastes in: fetch and normalize the public
+ * posting (see ingestJobUrl), then persist it. This READS a public page — it
+ * never logs in, fills, or submits. Deduplicates by URL: re-ingesting an
+ * existing posting refreshes its fields rather than creating a duplicate.
+ */
+export async function ingestJob(url: string, now: number): Promise<IngestResult> {
+  let posting: IngestedPosting;
+  try {
+    posting = await ingestJobUrl(url);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not ingest URL" };
+  }
+
+  if (hasDb) {
+    return dbIngest(posting, now);
+  }
+
+  const existing = store().jobs.find((j) => j.url === posting.url);
+  if (existing) {
+    Object.assign(existing, {
+      company: posting.companyName,
+      title: posting.title,
+      location: posting.location,
+      description: posting.description,
+      source: posting.source,
+      postedDate: posting.postedAt,
+      isNewGrad: posting.isNewGrad,
+      requiredYearsMin: posting.requiredYearsMin,
+      matchScore: scoreJob({
+        title: posting.title,
+        isNewGrad: posting.isNewGrad,
+        requiredYearsMin: posting.requiredYearsMin,
+      }),
+    });
+    return { ok: true, job: existing, created: false };
+  }
+
+  const nextId = Math.max(0, ...store().jobs.map((j) => j.id)) + 1;
+  const nextCompanyId = Math.max(0, ...store().jobs.map((j) => j.companyId)) + 1;
+  const job = ingestedToJobView(posting, nextId, nextCompanyId, now);
+  store().jobs.push(job);
+  return { ok: true, job, created: true };
+}
+
+/** Persist an ingested posting through the Drizzle schema. */
+async function dbIngest(
+  posting: IngestedPosting,
+  now: number
+): Promise<IngestResult> {
+  const ts = new Date(now);
+  const [existingCompany] = await db
+    .select({ id: companies.id })
+    .from(companies)
+    .where(eq(companies.name, posting.companyName))
+    .limit(1);
+
+  let companyId: number;
+  if (existingCompany) {
+    companyId = existingCompany.id;
+  } else {
+    const inserted = await db
+      .insert(companies)
+      .values({
+        name: posting.companyName,
+        careersUrl: posting.url,
+        atsType: "custom",
+      })
+      .returning({ id: companies.id });
+    companyId = inserted[0].id;
+  }
+
+  const dedupHash = computeDedupHash(companyId, posting.url);
+  const values = {
+    companyId,
+    title: posting.title,
+    url: posting.url,
+    location: posting.location,
+    description: posting.description,
+    postedDate: posting.postedAt ? new Date(posting.postedAt) : null,
+    foundDate: ts,
+    dedupHash,
+    isNewGrad: posting.isNewGrad,
+    requiredYearsMin: posting.requiredYearsMin,
+    source: posting.source,
+    rawData: JSON.stringify(posting),
+  };
+  const inserted = await db
+    .insert(postings)
+    .values(values)
+    .onConflictDoNothing({ target: postings.dedupHash })
+    .returning({ id: postings.id });
+
+  let created = inserted.length > 0;
+  let postingId = inserted[0]?.id;
+  if (!postingId) {
+    // Already known — refresh its mutable fields and return it.
+    const [row] = await db
+      .select({ id: postings.id })
+      .from(postings)
+      .where(eq(postings.dedupHash, dedupHash))
+      .limit(1);
+    if (!row) return { ok: false, error: "Ingest failed to persist" };
+    postingId = row.id;
+    created = false;
+    await db
+      .update(postings)
+      .set({
+        title: values.title,
+        location: values.location,
+        description: values.description,
+        isNewGrad: values.isNewGrad,
+        requiredYearsMin: values.requiredYearsMin,
+        source: values.source,
+        updatedAt: ts,
+      })
+      .where(eq(postings.id, postingId));
+  }
+
+  const job = await dbGetJob(postingId);
+  return job ? { ok: true, job, created } : { ok: false, error: "Ingest failed to persist" };
 }

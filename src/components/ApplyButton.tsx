@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Modal } from "./Modal";
 import { Sparkles, Spinner, ArrowUpRight, Check, X } from "./icons";
 import type { JobView } from "@/lib/data/types";
+import type { AutofillReport } from "@/lib/autofill/runner";
 import { approvalState } from "@/lib/apply/approval";
 import { scoreJobDetailed } from "@/lib/data/scoring";
 import { cn } from "@/lib/data/format";
@@ -29,6 +30,9 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
   const [loading, setLoading] = useState(false);
   const [approving, setApproving] = useState(false);
   const [opening, setOpening] = useState(false);
+  const [autofilling, setAutofilling] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [report, setReport] = useState<AutofillReport | null>(null);
   const [marking, setMarking] = useState(false);
   const [open, setOpen] = useState(false);
   const [prepared, setPrepared] = useState<JobView | null>(
@@ -120,6 +124,46 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
     }
   }
 
+  async function autofill() {
+    if (!packet) return;
+    setAutofilling(true);
+    setError(null);
+    setReport(null);
+    try {
+      // Same approval gate as "Open posting"; the server then drives a browser
+      // on this machine, fills the form, and stops before submit.
+      const data = await post("/api/apply/autofill", {
+        postingId: job.id,
+        fingerprint: packet.fingerprint,
+      });
+      setReport(data.report as AutofillReport);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Autofill was refused");
+    } finally {
+      setAutofilling(false);
+    }
+  }
+
+  async function generateCoverLetter() {
+    if (!packet) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      // Spends model tokens, so it only runs on this explicit click. Drafting
+      // re-stages the packet, which drops any approval — the user re-approves.
+      const data = await post("/api/apply/cover-letter", {
+        postingId: job.id,
+        fingerprint: packet.fingerprint,
+      });
+      setPrepared(data.job as JobView);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Cover letter drafting failed");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   async function markApplied() {
     setMarking(true);
     try {
@@ -183,7 +227,7 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
                 title={
                   urlAllowed
                     ? "Record that you reviewed this exact packet"
-                    : "The application URL is not allowlisted, so it cannot be approved"
+                    : "The application URL failed a safety check (https/credentials/host), so it cannot be approved"
                 }
               >
                 {approving ? <Spinner width={14} height={14} /> : <Check width={14} height={14} />}
@@ -202,6 +246,19 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
             >
               {opening ? <Spinner width={14} height={14} /> : <ArrowUpRight width={14} height={14} />}
               Open posting
+            </button>
+            <button
+              onClick={autofill}
+              disabled={state !== "approved" || autofilling}
+              className="btn-primary disabled:cursor-not-allowed disabled:opacity-40"
+              title={
+                state === "approved"
+                  ? "Open the application in a browser and fill it in — you review and submit"
+                  : "Approve the packet first"
+              }
+            >
+              {autofilling ? <Spinner width={14} height={14} /> : <Sparkles width={14} height={14} />}
+              Autofill in browser
             </button>
             <button onClick={markApplied} disabled={marking} className="btn-primary">
               {marking ? <Spinner width={14} height={14} /> : <Check width={14} height={14} />}
@@ -227,10 +284,10 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
                 )}
               >
                 {urlAllowed ? (
-                  <>Allowlisted host {packet.handoff?.domain}. {packet.handoff?.reason}</>
+                  <>Host {packet.handoff?.domain}. {packet.handoff?.reason}</>
                 ) : (
                   <>
-                    <X width={12} height={12} className="inline" /> Not allowlisted:{" "}
+                    <X width={12} height={12} className="inline" /> Failed a safety check:{" "}
                     {packet.handoff?.reason ?? "no handoff decision"} — approval is blocked.
                   </>
                 )}
@@ -306,12 +363,50 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
             )}
 
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                Cover letter draft
-              </h3>
-              <pre className="whitespace-pre-wrap rounded-xl border border-hair bg-canvas p-4 font-sans text-sm leading-relaxed text-zinc-300">
-                {packet.coverLetter}
-              </pre>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Cover letter draft
+                </h3>
+                {packet.coverLetter.trim() !== "" && (
+                  <button
+                    onClick={generateCoverLetter}
+                    disabled={generating}
+                    className="btn-ghost text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Draft a fresh cover letter with AI (drops the current approval)"
+                  >
+                    {generating ? (
+                      <Spinner width={12} height={12} />
+                    ) : (
+                      <Sparkles width={12} height={12} />
+                    )}
+                    Regenerate
+                  </button>
+                )}
+              </div>
+              {packet.coverLetter.trim() === "" ? (
+                <div className="rounded-xl border border-dashed border-hair bg-canvas p-4 text-center">
+                  <p className="text-sm text-zinc-400">
+                    No cover letter yet. Drafting one uses AI, so it only runs
+                    when you ask.
+                  </p>
+                  <button
+                    onClick={generateCoverLetter}
+                    disabled={generating}
+                    className="btn-primary mx-auto mt-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {generating ? (
+                      <Spinner width={14} height={14} />
+                    ) : (
+                      <Sparkles width={14} height={14} />
+                    )}
+                    {generating ? "Drafting…" : "Generate cover letter"}
+                  </button>
+                </div>
+              ) : (
+                <pre className="whitespace-pre-wrap rounded-xl border border-hair bg-canvas p-4 font-sans text-sm leading-relaxed text-zinc-300">
+                  {packet.coverLetter}
+                </pre>
+              )}
             </section>
 
             <section>
@@ -343,6 +438,46 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
                 packet {packet.fingerprint}
               </p>
             </section>
+
+            {report && (
+              <section className="rounded-xl border border-brand-400/25 bg-brand-500/5 p-4">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-brand-200">
+                  Autofill ran in a browser on your machine
+                </h3>
+                <p className="mb-3 text-xs text-amber-300">{report.notice}</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-emerald-300">
+                      Filled {report.filled.length}
+                    </p>
+                    <ul className="space-y-0.5 text-xs text-zinc-400">
+                      {report.filled.map((f) => (
+                        <li key={f.key}>
+                          <Check width={11} height={11} className="inline text-emerald-400" />{" "}
+                          {f.label}
+                        </li>
+                      ))}
+                      {report.filled.length === 0 && <li>Nothing matched automatically.</li>}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-amber-300">
+                      Left for you {report.skipped.length}
+                    </p>
+                    <ul className="space-y-0.5 text-xs text-zinc-400">
+                      {report.skipped.map((s) => (
+                        <li key={s.key}>
+                          <X width={11} height={11} className="inline text-amber-400" /> {s.label}{" "}
+                          <span className="text-zinc-600">({s.reason})</span>
+                        </li>
+                      ))}
+                      {report.skipped.length === 0 && <li>All known fields were placed.</li>}
+                    </ul>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-zinc-500">Résumé: {report.resume.note}</p>
+              </section>
+            )}
 
             {openedUrl && (
               <p className="text-xs text-zinc-400">

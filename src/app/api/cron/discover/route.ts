@@ -3,6 +3,7 @@ import { DISCOVERY_SOURCES } from "../../../../../config/discovery";
 import { runDiscovery } from "@/lib/discovery/run";
 import { persistDiscovery } from "@/lib/discovery/persist";
 import { fetchSimplifyListings, persistSimplify } from "@/lib/discovery/simplify";
+import { enrichSimplifyDescriptions } from "@/lib/discovery/enrich";
 import { hasDb } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -57,6 +58,16 @@ export async function GET(request: Request) {
       simplify = { error: e instanceof Error ? e.message : "SimplifyJobs refresh failed" };
     }
 
+    // Backfill descriptions for a bounded batch of Simplify postings via the
+    // public ATS APIs. Bounded so the run stays within the function budget;
+    // the daily cadence chips away at the backlog. Isolated from the rest.
+    let enriched: Awaited<ReturnType<typeof enrichSimplifyDescriptions>> | { error: string };
+    try {
+      enriched = await enrichSimplifyDescriptions({ limit: 200, minIntervalMs: 400 });
+    } catch (e) {
+      enriched = { error: e instanceof Error ? e.message : "Description enrichment failed" };
+    }
+
     return NextResponse.json({
       ok: true,
       startedAt: startedAt.toISOString(),
@@ -64,6 +75,7 @@ export async function GET(request: Request) {
       totals: result.totals,
       persisted,
       simplify,
+      enriched,
     });
   } catch (error) {
     return NextResponse.json(
