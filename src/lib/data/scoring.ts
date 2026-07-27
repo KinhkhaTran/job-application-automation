@@ -1,33 +1,68 @@
 // Heuristic 0–100 fit score for a new-grad SWE search.
 // Deterministic so the same posting always scores the same.
-export function scoreJob(input: {
+
+export interface ScoreInput {
   title: string;
   isNewGrad: boolean;
   requiredYearsMin: number | null;
-}): number {
-  let score = 45;
+}
 
-  if (input.isNewGrad) score += 35;
+export interface ScoreReason {
+  label: string;
+  /** Points this signal contributed, before clamping. */
+  delta: number;
+}
+
+export interface ScoreBreakdown {
+  score: number;
+  reasons: ScoreReason[];
+}
+
+const BASE = 45;
+
+/**
+ * The score plus the signals that produced it, so the review UI can explain
+ * itself instead of showing a bare number.
+ */
+export function scoreJobDetailed(input: ScoreInput): ScoreBreakdown {
+  const reasons: ScoreReason[] = [{ label: "Baseline SWE posting", delta: BASE }];
+
+  if (input.isNewGrad) {
+    reasons.push({ label: "Classified as new-grad / entry level", delta: 35 });
+  } else {
+    reasons.push({ label: "Not classified as new-grad", delta: 0 });
+  }
 
   const years = input.requiredYearsMin;
   if (years === null) {
-    score += 5;
+    reasons.push({ label: "No required-experience years found", delta: 5 });
   } else if (years <= 1) {
-    score += 20;
+    reasons.push({ label: `Requires only ${years} year(s) of experience`, delta: 20 });
   } else if (years <= 2) {
-    score += 8;
+    reasons.push({ label: `Requires ${years} years of experience`, delta: 8 });
   } else if (years >= 5) {
-    score -= 35;
+    reasons.push({ label: `Requires ${years}+ years of experience`, delta: -35 });
   } else {
-    score -= 15;
+    reasons.push({ label: `Requires ${years} years of experience`, delta: -15 });
   }
 
   const t = input.title.toLowerCase();
-  if (/\b(senior|sr\.?|staff|principal|lead|manager)\b/.test(t)) score -= 30;
-  if (/\b(software|engineer|developer|swe)\b/.test(t)) score += 8;
-  if (/\b(intern|internship)\b/.test(t)) score -= 20;
+  if (/\b(senior|sr\.?|staff|principal|lead|manager)\b/.test(t)) {
+    reasons.push({ label: "Title indicates a senior/lead role", delta: -30 });
+  }
+  if (/\b(software|engineer|developer|swe)\b/.test(t)) {
+    reasons.push({ label: "Title matches software engineering", delta: 8 });
+  }
+  if (/\b(intern|internship)\b/.test(t)) {
+    reasons.push({ label: "Title indicates an internship", delta: -20 });
+  }
 
-  return Math.max(0, Math.min(100, Math.round(score)));
+  const raw = reasons.reduce((sum, r) => sum + r.delta, 0);
+  return { score: Math.max(0, Math.min(100, Math.round(raw))), reasons };
+}
+
+export function scoreJob(input: ScoreInput): number {
+  return scoreJobDetailed(input).score;
 }
 
 export function matchTier(score: number): "high" | "medium" | "low" {

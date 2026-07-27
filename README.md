@@ -70,9 +70,20 @@ npm run discover -- --persist   # also upsert into Postgres (needs DATABASE_URL)
 
 Every source run checks robots.txt against the actual endpoint fetched, is rate-limited per domain, validates the external payload, deduplicates across sources, and classifies new-grad fit and required experience years. Per-source errors are isolated and reported in the JSON summary (and in `scrape_logs` when persisting).
 
-## Application handoff — safety boundaries
+## Application review and handoff — safety boundaries
 
-Applying stays **fully manual**. When a packet is prepared, the posting URL is normalized (credentials stripped, tracking params removed) and checked against an allowlist (configured careers domains + public ATS apply hosts, https only, no private hosts). The dashboard only ever offers an "open in your browser" link — and withholds it, with the reason, when the domain isn't allowlisted.
+Applying stays **fully manual**. When a packet is prepared, the posting URL is normalized (credentials stripped, tracking parameters removed) and checked against an allowlist (configured careers domains + public ATS apply hosts, HTTPS only, no private hosts).
+
+### Review flow
+
+1. Open a job’s **Review application** panel.
+2. Read the exact application URL, match score and reasons, résumé version, cover-letter draft, and every screening answer.
+3. Resolve every item marked **Needs your input**. Generated cover letters are always flagged for a human read; judgement questions such as compensation, relocation, referrals, or notice period must be confirmed by you.
+4. Click **Approve this packet** only after reviewing the current content. Approval is recorded for that one posting and that exact packet fingerprint.
+5. Only after approval, click **Open application**. The server rechecks the fingerprint and allowlist, then returns the URL for you to open in your own browser.
+6. Complete the employer’s form yourself, review every field and legal attestation, and submit manually. Mark the posting as submitted afterward.
+
+Editing or regenerating the résumé, cover letter, screening answers, or URL invalidates the previous approval. Approval is **not** submission and never fills, clicks, or sends anything to a third-party ATS. There is no bulk approval path.
 
 Hard boundaries, by design:
 

@@ -1,6 +1,8 @@
 import { scoreJob } from "./scoring";
 import type { AtsType, JobView, PostingStatus, ApplicationPacket } from "./types";
 import { RESUME_VERSIONS } from "./resume";
+import { stagePacket } from "@/lib/apply/packet";
+import { configuredAllowlist } from "@/lib/apply/allowlist";
 
 // Seed data so the dashboard is populated on first run without a live DB.
 // Dates are anchored around late July 2026 to read naturally as "Xd ago".
@@ -21,28 +23,55 @@ export const SAMPLE_COMPANIES: SampleCompany[] = [
   { id: 6, name: "Figma", careersUrl: "https://figma.com/careers", atsType: "greenhouse" },
 ];
 
-function packet(
-  version: string,
-  company: string,
-  role: string,
-  status: ApplicationPacket["status"],
-  preparedAt: string,
-  submittedDate: string | null
+/** Screening answers pre-filled from the stored profile. */
+export const DEFAULT_SCREENING_ANSWERS = [
+  { question: "Are you authorized to work in the US?", answer: "Yes." },
+  { question: "Will you require sponsorship?", answer: "No." },
+  {
+    question: "Expected graduation date?",
+    answer: "May 2026 (available full-time from June 2026).",
+  },
+];
+
+interface SeedApplication {
+  resumeVersion: string;
+  status: ApplicationPacket["status"];
+  preparedAt: string;
+  submittedDate: string | null;
+}
+
+/**
+ * Stage a seed packet exactly the way the real prepare path does, so the demo
+ * data carries a real fingerprint, provenance, and handoff decision. Packets
+ * for postings that were already submitted also carry the matching approval
+ * record they would have had at the time.
+ */
+function seedPacket(
+  seed: SeedApplication,
+  ctx: { postingId: number; company: string; title: string; url: string }
 ): ApplicationPacket {
+  const packet = stagePacket(
+    {
+      resumeVersion: seed.resumeVersion,
+      coverLetter: draftCoverLetter(ctx.company, ctx.title),
+      screeningAnswers: DEFAULT_SCREENING_ANSWERS.map((qa) => ({ ...qa })),
+    },
+    { ...ctx, allowlist: configuredAllowlist(SAMPLE_COMPANIES.map((c) => c.careersUrl)) },
+    {
+      status: seed.status,
+      preparedAt: seed.preparedAt,
+      submittedDate: seed.submittedDate,
+    }
+  );
+  if (!seed.submittedDate || !packet.handoff?.allowed) return packet;
   return {
-    status,
-    resumeVersion: version,
-    coverLetter: draftCoverLetter(company, role),
-    screeningAnswers: [
-      { question: "Are you authorized to work in the US?", answer: "Yes." },
-      { question: "Will you require sponsorship?", answer: "No." },
-      {
-        question: "Expected graduation date?",
-        answer: "May 2026 (available full-time from June 2026).",
-      },
-    ],
-    preparedAt,
-    submittedDate,
+    ...packet,
+    approval: {
+      fingerprint: packet.fingerprint,
+      url: packet.handoff.url,
+      approvedAt: seed.preparedAt,
+      approvedBy: "human-review",
+    },
   };
 }
 
@@ -69,7 +98,7 @@ interface Seed {
   postedDate: string | null;
   foundDate: string;
   status: PostingStatus;
-  application?: ApplicationPacket;
+  application?: SeedApplication;
 }
 
 const SEEDS: Seed[] = [
@@ -108,14 +137,12 @@ const SEEDS: Seed[] = [
     postedDate: "2026-07-22T00:00:00Z",
     foundDate: "2026-07-25T09:00:00Z",
     status: "reviewing",
-    application: packet(
-      RESUME_VERSIONS[2],
-      "Linear",
-      "Product Engineer (Entry Level)",
-      "ready",
-      "2026-07-26T10:00:00Z",
-      null
-    ),
+    application: {
+      resumeVersion: RESUME_VERSIONS[2],
+      status: "ready",
+      preparedAt: "2026-07-26T10:00:00Z",
+      submittedDate: null,
+    },
   },
   {
     id: 104,
@@ -128,14 +155,12 @@ const SEEDS: Seed[] = [
     postedDate: "2026-07-20T00:00:00Z",
     foundDate: "2026-07-24T09:00:00Z",
     status: "reviewing",
-    application: packet(
-      RESUME_VERSIONS[1],
-      "Ramp",
-      "Software Engineer, New Grad (Backend)",
-      "ready",
-      "2026-07-25T16:00:00Z",
-      null
-    ),
+    application: {
+      resumeVersion: RESUME_VERSIONS[1],
+      status: "ready",
+      preparedAt: "2026-07-25T16:00:00Z",
+      submittedDate: null,
+    },
   },
   {
     id: 105,
@@ -148,14 +173,12 @@ const SEEDS: Seed[] = [
     postedDate: "2026-07-15T00:00:00Z",
     foundDate: "2026-07-20T09:00:00Z",
     status: "applied",
-    application: packet(
-      RESUME_VERSIONS[0],
-      "Notion",
-      "Software Engineer, Early Career",
-      "submitted",
-      "2026-07-19T12:00:00Z",
-      "2026-07-19T15:30:00Z"
-    ),
+    application: {
+      resumeVersion: RESUME_VERSIONS[0],
+      status: "submitted",
+      preparedAt: "2026-07-19T12:00:00Z",
+      submittedDate: "2026-07-19T15:30:00Z",
+    },
   },
   {
     id: 106,
@@ -168,14 +191,12 @@ const SEEDS: Seed[] = [
     postedDate: "2026-07-10T00:00:00Z",
     foundDate: "2026-07-14T09:00:00Z",
     status: "interviewing",
-    application: packet(
-      RESUME_VERSIONS[0],
-      "Figma",
-      "New Grad Software Engineer, Product",
-      "submitted",
-      "2026-07-13T12:00:00Z",
-      "2026-07-13T18:00:00Z"
-    ),
+    application: {
+      resumeVersion: RESUME_VERSIONS[0],
+      status: "submitted",
+      preparedAt: "2026-07-13T12:00:00Z",
+      submittedDate: "2026-07-13T18:00:00Z",
+    },
   },
   {
     id: 107,
@@ -188,14 +209,12 @@ const SEEDS: Seed[] = [
     postedDate: "2026-06-28T00:00:00Z",
     foundDate: "2026-07-02T09:00:00Z",
     status: "offer",
-    application: packet(
-      RESUME_VERSIONS[1],
-      "Stripe",
-      "Software Engineer, University Grad (Infra)",
-      "submitted",
-      "2026-07-01T12:00:00Z",
-      "2026-07-01T14:00:00Z"
-    ),
+    application: {
+      resumeVersion: RESUME_VERSIONS[1],
+      status: "submitted",
+      preparedAt: "2026-07-01T12:00:00Z",
+      submittedDate: "2026-07-01T14:00:00Z",
+    },
   },
   {
     id: 108,
@@ -244,14 +263,12 @@ const SEEDS: Seed[] = [
     postedDate: "2026-07-12T00:00:00Z",
     foundDate: "2026-07-16T09:00:00Z",
     status: "rejected",
-    application: packet(
-      RESUME_VERSIONS[0],
-      "Figma",
-      "Software Engineer, Recent Grad (Platform)",
-      "submitted",
-      "2026-07-15T12:00:00Z",
-      "2026-07-15T13:00:00Z"
-    ),
+    application: {
+      resumeVersion: RESUME_VERSIONS[0],
+      status: "submitted",
+      preparedAt: "2026-07-15T12:00:00Z",
+      submittedDate: "2026-07-15T13:00:00Z",
+    },
   },
   {
     id: 112,
@@ -269,6 +286,7 @@ const SEEDS: Seed[] = [
 
 function toJobView(seed: Seed): JobView {
   const company = SAMPLE_COMPANIES.find((c) => c.id === seed.companyId)!;
+  const url = `${company.careersUrl.replace(/\/$/, "")}/${seed.path}`;
   const isNewGrad =
     /new[\s-]?grad|entry|university grad|recent grad|early career/i.test(
       seed.title + " " + seed.description
@@ -284,7 +302,7 @@ function toJobView(seed: Seed): JobView {
     company: company.name,
     atsType: company.atsType,
     title: seed.title,
-    url: `${company.careersUrl.replace(/\/$/, "")}/${seed.path}`,
+    url,
     location: seed.location,
     description: seed.description,
     source: company.atsType,
@@ -294,7 +312,14 @@ function toJobView(seed: Seed): JobView {
     requiredYearsMin,
     status: seed.status,
     matchScore: scoreJob({ title: seed.title, isNewGrad, requiredYearsMin }),
-    application: seed.application ?? null,
+    application: seed.application
+      ? seedPacket(seed.application, {
+          postingId: seed.id,
+          company: company.name,
+          title: seed.title,
+          url,
+        })
+      : null,
   };
 }
 

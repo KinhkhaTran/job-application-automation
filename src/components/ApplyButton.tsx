@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "./Modal";
-import { Sparkles, Spinner, ArrowUpRight, Check } from "./icons";
+import { Sparkles, Spinner, ArrowUpRight, Check, X } from "./icons";
 import type { JobView } from "@/lib/data/types";
+import { approvalState } from "@/lib/apply/approval";
+import { scoreJobDetailed } from "@/lib/data/scoring";
 import { cn } from "@/lib/data/format";
 
 type Props = {
@@ -13,31 +15,49 @@ type Props = {
   className?: string;
 };
 
+/**
+ * The manual review gate, in the UI.
+ *
+ * The reviewer sees the exact URL, the score and why, the cover letter, the
+ * screening answers, and every field that still needs their input. "Approve"
+ * records that review against a fingerprint of this exact packet; only then
+ * does the open button unlock, and all it does is hand back the URL to open in
+ * their own browser. Nothing here submits an application.
+ */
 export function ApplyButton({ job, variant = "primary", className }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [marking, setMarking] = useState(false);
   const [open, setOpen] = useState(false);
   const [prepared, setPrepared] = useState<JobView | null>(
     job.application ? job : null
   );
+  const [openedUrl, setOpenedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const alreadyApplied = ["applied", "interviewing", "offer", "rejected", "ghosted"].includes(
     job.status
   );
 
+  async function post(path: string, body: unknown) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error ?? "Request failed");
+    return data;
+  }
+
   async function prepare() {
     setLoading(true);
     setError(null);
+    setOpenedUrl(null);
     try {
-      const res = await fetch("/api/apply", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ postingId: job.id }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error ?? "Failed to prepare packet");
+      const data = await post("/api/apply", { postingId: job.id });
       setPrepared(data.job as JobView);
       setOpen(true);
       router.refresh();
@@ -48,16 +68,62 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
     }
   }
 
+  const packet = prepared?.application;
+  const state = packet ? approvalState(packet) : "unapproved";
+  const applyUrl = packet?.handoff?.url ?? null;
+  const urlAllowed = packet?.handoff?.allowed === true;
+  const breakdown = scoreJobDetailed({
+    title: job.title,
+    isNewGrad: job.isNewGrad,
+    requiredYearsMin: job.requiredYearsMin,
+  });
+  const needsInput = packet?.provenance.filter((p) => p.needsUserInput) ?? [];
+
+  async function approve() {
+    if (!packet || !applyUrl) return;
+    setApproving(true);
+    setError(null);
+    try {
+      // Echo back the exact fingerprint and URL displayed above: if the packet
+      // changed since it was rendered, the server refuses this approval.
+      const data = await post("/api/apply/approve", {
+        postingId: job.id,
+        fingerprint: packet.fingerprint,
+        url: applyUrl,
+      });
+      setPrepared(data.job as JobView);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Approval was refused");
+    } finally {
+      setApproving(false);
+    }
+  }
+
+  async function openPosting() {
+    if (!packet) return;
+    setOpening(true);
+    setError(null);
+    try {
+      // The server returns a URL and nothing else; opening it is the browser's
+      // job, and submitting the application is yours.
+      const data = await post("/api/apply/open", {
+        postingId: job.id,
+        fingerprint: packet.fingerprint,
+      });
+      setOpenedUrl(data.url as string);
+      window.open(data.url as string, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Handoff was refused");
+    } finally {
+      setOpening(false);
+    }
+  }
+
   async function markApplied() {
     setMarking(true);
     try {
-      const res = await fetch("/api/status", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ postingId: job.id, to: "applied" }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error ?? "Failed to update");
+      await post("/api/status", { postingId: job.id, to: "applied" });
       setOpen(false);
       router.refresh();
     } catch (e) {
@@ -66,8 +132,6 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
       setMarking(false);
     }
   }
-
-  const packet = prepared?.application;
 
   return (
     <>
@@ -99,27 +163,46 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Application packet ready"
+        title="Review this application packet"
         subtitle={`${job.company} · ${job.title}`}
         footer={
           <>
             <span className="mr-auto text-xs text-zinc-500">
-              You submit manually — nothing was sent to the ATS.
+              Approving records your review. It does not submit anything —{" "}
+              <span className="text-zinc-400">you submit manually.</span>
             </span>
-            {packet?.handoff && !packet.handoff.allowed ? (
-              <span className="text-xs text-amber-400">
-                Link withheld: {packet.handoff.reason}
+            {state === "approved" ? (
+              <span className="chip border-emerald-400/25 bg-emerald-400/10 text-emerald-300">
+                <Check width={13} height={13} /> Reviewed &amp; approved
               </span>
             ) : (
-              <a
-                href={packet?.handoff?.url ?? job.url}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-ghost"
+              <button
+                onClick={approve}
+                disabled={approving || !urlAllowed || !packet}
+                className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+                title={
+                  urlAllowed
+                    ? "Record that you reviewed this exact packet"
+                    : "The application URL is not allowlisted, so it cannot be approved"
+                }
               >
-                Open posting <ArrowUpRight width={14} height={14} />
-              </a>
+                {approving ? <Spinner width={14} height={14} /> : <Check width={14} height={14} />}
+                {state === "stale" ? "Re-approve packet" : "I reviewed this — approve"}
+              </button>
             )}
+            <button
+              onClick={openPosting}
+              disabled={state !== "approved" || opening}
+              className="btn-ghost disabled:cursor-not-allowed disabled:opacity-40"
+              title={
+                state === "approved"
+                  ? "Open the posting in a new tab and submit it yourself"
+                  : "Approve the packet first"
+              }
+            >
+              {opening ? <Spinner width={14} height={14} /> : <ArrowUpRight width={14} height={14} />}
+              Open posting
+            </button>
             <button onClick={markApplied} disabled={marking} className="btn-primary">
               {marking ? <Spinner width={14} height={14} /> : <Check width={14} height={14} />}
               Mark as applied
@@ -129,14 +212,98 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
       >
         {packet && (
           <div className="space-y-5">
+            {/* What you are approving: the exact destination URL. */}
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Application URL you are approving
+              </h3>
+              <p className="break-all rounded-xl border border-hair bg-canvas p-3 font-mono text-xs text-zinc-200">
+                {applyUrl ?? "No application URL on this packet."}
+              </p>
+              <p
+                className={cn(
+                  "mt-1.5 text-xs",
+                  urlAllowed ? "text-zinc-500" : "text-amber-400"
+                )}
+              >
+                {urlAllowed ? (
+                  <>Allowlisted host {packet.handoff?.domain}. {packet.handoff?.reason}</>
+                ) : (
+                  <>
+                    <X width={12} height={12} className="inline" /> Not allowlisted:{" "}
+                    {packet.handoff?.reason ?? "no handoff decision"} — approval is blocked.
+                  </>
+                )}
+              </p>
+            </section>
+
             <div className="flex flex-wrap gap-2">
               <span className="chip border-brand-400/25 bg-brand-500/10 text-brand-200">
-                Résumé · {packet.resumeVersion}
+                Résumé · {packet.resumeVersion || "none selected"}
               </span>
               <span className="chip border-hair text-zinc-400">
                 {job.location ?? "Location N/A"}
               </span>
+              <span className="chip border-hair text-zinc-400">
+                Match {breakdown.score}/100
+              </span>
+              <span
+                className={cn(
+                  "chip",
+                  state === "approved"
+                    ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                    : state === "stale"
+                      ? "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                      : "border-hair text-zinc-400"
+                )}
+              >
+                {state === "approved"
+                  ? "Approved"
+                  : state === "stale"
+                    ? "Approval expired — packet changed"
+                    : "Not yet approved"}
+              </span>
             </div>
+
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Why it scored {breakdown.score}
+              </h3>
+              <ul className="space-y-1 text-sm text-zinc-300">
+                {breakdown.reasons.map((r) => (
+                  <li key={r.label} className="flex justify-between gap-4">
+                    <span>{r.label}</span>
+                    <span
+                      className={cn(
+                        "font-mono text-xs",
+                        r.delta > 0
+                          ? "text-emerald-400"
+                          : r.delta < 0
+                            ? "text-rose-400"
+                            : "text-zinc-500"
+                      )}
+                    >
+                      {r.delta > 0 ? `+${r.delta}` : r.delta}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {needsInput.length > 0 && (
+              <section className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-4">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-300">
+                  Needs your input before you apply
+                </h3>
+                <ul className="space-y-1.5 text-sm text-amber-100/90">
+                  {needsInput.map((p) => (
+                    <li key={p.field}>
+                      <span className="font-medium">{p.label}</span> — {p.note}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <section>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
@@ -160,6 +327,37 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
                 ))}
               </dl>
             </section>
+
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Where this content came from
+              </h3>
+              <ul className="space-y-1 text-xs text-zinc-500">
+                {packet.provenance.map((p) => (
+                  <li key={p.field}>
+                    <span className="text-zinc-400">{p.label}</span> · {p.source} — {p.note}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 font-mono text-[11px] text-zinc-600">
+                packet {packet.fingerprint}
+              </p>
+            </section>
+
+            {openedUrl && (
+              <p className="text-xs text-zinc-400">
+                Opened in a new tab. If your browser blocked it, use this link and submit the
+                application yourself:{" "}
+                <a
+                  href={openedUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="break-all font-mono text-brand-200 underline"
+                >
+                  {openedUrl}
+                </a>
+              </p>
+            )}
 
             {error && <p className="text-xs text-rose-400">{error}</p>}
           </div>

@@ -3,18 +3,38 @@ import { runScraper } from "@/lib/scrapers/orchestrator";
 import { MockAdapter } from "@/lib/scrapers/adapters/mock";
 import { COMPANY_TARGETS } from "../../../config/companies";
 import { isValidTransition } from "@/lib/scrapers/statusTransitions";
-import { evaluateHandoff } from "@/lib/apply/handoff";
 import { configuredAllowlist } from "@/lib/apply/allowlist";
+import { invalidateStaleApproval, type ApprovalRecord } from "@/lib/apply/approval";
+import { buildProvenance, needsUserInputFields } from "@/lib/apply/provenance";
+import { computePacketFingerprint } from "@/lib/apply/fingerprint";
+import {
+  applyPacketEdits,
+  hasEdits,
+  stagePacket,
+  type PacketContext,
+  type PacketEdits,
+} from "@/lib/apply/packet";
+import {
+  evaluateApproval,
+  evaluateOpen,
+  type RefusalCode,
+} from "@/lib/apply/review";
 import { computeDedupHash } from "@/lib/scrapers/dedup";
 import { db, hasDb, companies, postings, applications } from "@/lib/db";
 import type { Application, Company, Posting } from "@/lib/db";
 import { scoreJob } from "./scoring";
-import { seedJobs, draftCoverLetter, SAMPLE_COMPANIES } from "./sample";
+import {
+  seedJobs,
+  draftCoverLetter,
+  SAMPLE_COMPANIES,
+  DEFAULT_SCREENING_ANSWERS,
+} from "./sample";
 import { RESUME_VERSIONS } from "./resume";
 import type {
   ApplicationPacket,
   DashboardStats,
   JobView,
+  PacketProvenance,
   PostingStatus,
 } from "./types";
 
@@ -54,24 +74,83 @@ function parseScreeningAnswers(
   }
 }
 
-function toPacket(app: Application): ApplicationPacket {
-  return {
+function parseProvenance(raw: string | null): PacketProvenance[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as PacketProvenance[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function toPacket(
+  app: Application,
+  ctx: { postingId: number; company: string; title: string }
+): ApplicationPacket {
+  const handoff =
+    app.applicationUrl && app.handoffAllowed !== null
+      ? {
+          allowed: app.handoffAllowed,
+          url: app.applicationUrl,
+          domain: app.applicationDomain,
+          reason: app.handoffReason ?? "",
+        }
+      : undefined;
+
+  const resumeVersion = app.resumeVersion ?? "";
+  const coverLetter = app.coverLetter ?? "";
+  const screeningAnswers = parseScreeningAnswers(app.screeningAnswers);
+
+  // Rows written before the review gate existed carry no provenance or
+  // fingerprint; both are deterministic, so they are recomputed here rather
+  // than left empty (an empty fingerprint could never be approved).
+  const provenance =
+    parseProvenance(app.provenance) ??
+    buildProvenance({
+      resumeVersion,
+      coverLetter,
+      screeningAnswers,
+      handoffAllowed: handoff?.allowed ?? false,
+    });
+
+  const fingerprint =
+    app.packetFingerprint ??
+    computePacketFingerprint({
+      postingId: ctx.postingId,
+      company: ctx.company,
+      title: ctx.title,
+      applicationUrl: handoff?.url ?? "",
+      resumeVersion,
+      coverLetter,
+      screeningAnswers,
+      needsUserInput: needsUserInputFields(provenance),
+    });
+
+  const approval: ApprovalRecord | null =
+    app.approvedFingerprint && app.approvedUrl && app.approvedAt
+      ? {
+          fingerprint: app.approvedFingerprint,
+          url: app.approvedUrl,
+          approvedAt: app.approvedAt.toISOString(),
+          approvedBy: "human-review",
+        }
+      : null;
+
+  // Defence in depth: an approval that no longer matches the stored packet is
+  // dropped on read, whatever wrote it.
+  return invalidateStaleApproval({
     status: app.status,
-    resumeVersion: app.resumeVersion ?? "",
-    coverLetter: app.coverLetter ?? "",
-    screeningAnswers: parseScreeningAnswers(app.screeningAnswers),
+    resumeVersion,
+    coverLetter,
+    screeningAnswers,
     preparedAt: app.createdAt.toISOString(),
     submittedDate: app.submittedDate?.toISOString() ?? null,
-    handoff:
-      app.applicationUrl && app.handoffAllowed !== null
-        ? {
-            allowed: app.handoffAllowed,
-            url: app.applicationUrl,
-            domain: app.applicationDomain,
-            reason: app.handoffReason ?? "",
-          }
-        : undefined,
-  };
+    handoff,
+    provenance,
+    fingerprint,
+    approval,
+  });
 }
 
 function toJobView(
@@ -99,7 +178,13 @@ function toJobView(
       isNewGrad: posting.isNewGrad,
       requiredYearsMin: posting.requiredYearsMin,
     }),
-    application: app ? toPacket(app) : null,
+    application: app
+      ? toPacket(app, {
+          postingId: posting.id,
+          company: company.name,
+          title: posting.title,
+        })
+      : null,
   };
 }
 
@@ -217,31 +302,25 @@ export async function prepareApplication(
   if (job.status !== "new" && job.status !== "reviewing") {
     return { ok: false, error: `Cannot prepare a packet from status "${job.status}".` };
   }
+  if (job.application?.status === "submitted") {
+    return { ok: false, error: "This application is already marked as submitted." };
+  }
 
-  const version = pickResumeVersion(job);
-  // Sample-company careers domains join the config-derived allowlist so the
-  // no-DB demo data behaves like real allowlisted postings; in DB mode the
-  // posting's own careers-page domain is the extra allowlisted host.
-  const extraUrls = hasDb
-    ? await dbCareersUrls(job.companyId)
-    : SAMPLE_COMPANIES.map((c) => c.careersUrl);
-  const allowlist = configuredAllowlist(extraUrls);
-  const packet: ApplicationPacket = {
-    status: "ready",
-    resumeVersion: version,
-    coverLetter: draftCoverLetter(job.company, job.title),
-    screeningAnswers: [
-      { question: "Are you authorized to work in the US?", answer: "Yes." },
-      { question: "Will you require sponsorship?", answer: "No." },
-      {
-        question: "Expected graduation date?",
-        answer: "May 2026 (available full-time from June 2026).",
-      },
-    ],
-    preparedAt: new Date(now).toISOString(),
-    submittedDate: null,
-    handoff: evaluateHandoff(job.url, allowlist),
-  };
+  // stagePacket clears any prior approval, so regenerating a packet always
+  // requires a fresh human approval.
+  const packet = stagePacket(
+    {
+      resumeVersion: pickResumeVersion(job),
+      coverLetter: draftCoverLetter(job.company, job.title),
+      screeningAnswers: DEFAULT_SCREENING_ANSWERS.map((qa) => ({ ...qa })),
+    },
+    await packetContext(job),
+    {
+      status: "ready",
+      preparedAt: new Date(now).toISOString(),
+      submittedDate: null,
+    }
+  );
 
   if (hasDb) {
     await dbUpsertApplication(id, packet, now);
@@ -260,6 +339,25 @@ export async function prepareApplication(
   job.application = packet;
   if (job.status === "new") job.status = "reviewing";
   return { ok: true, job };
+}
+
+/**
+ * Build the staging context for a posting. Sample-company careers domains join
+ * the config-derived allowlist so the no-DB demo data behaves like real
+ * allowlisted postings; in DB mode the posting's own careers-page domain is
+ * the extra allowlisted host.
+ */
+async function packetContext(job: JobView): Promise<PacketContext> {
+  const extraUrls = hasDb
+    ? await dbCareersUrls(job.companyId)
+    : SAMPLE_COMPANIES.map((c) => c.careersUrl);
+  return {
+    postingId: job.id,
+    company: job.company,
+    title: job.title,
+    url: job.url,
+    allowlist: configuredAllowlist(extraUrls),
+  };
 }
 
 async function dbCareersUrls(companyId: number): Promise<string[]> {
@@ -287,6 +385,12 @@ async function dbUpsertApplication(
     applicationDomain: packet.handoff?.domain ?? null,
     handoffAllowed: packet.handoff?.allowed ?? null,
     handoffReason: packet.handoff?.reason ?? null,
+    packetFingerprint: packet.fingerprint,
+    provenance: JSON.stringify(packet.provenance),
+    // Staging clears the approval columns: a re-staged packet is unapproved.
+    approvedFingerprint: packet.approval?.fingerprint ?? null,
+    approvedUrl: packet.approval?.url ?? null,
+    approvedAt: packet.approval ? new Date(packet.approval.approvedAt) : null,
     updatedAt: new Date(now),
   };
   const existing = await db
@@ -303,6 +407,155 @@ async function dbUpsertApplication(
   } else {
     await db.insert(applications).values({ postingId, ...values });
   }
+}
+
+// ── Human-review gate ────────────────────────────────────────────────────────
+// Three operations, and none of them touches the ATS:
+//   editApplication    — re-stage with human edits (invalidates the approval)
+//   approveApplication — record that a human reviewed this exact packet
+//   openApplication    — return the approved URL for the user to open manually
+
+export interface EditResult {
+  ok: boolean;
+  job?: JobView;
+  error?: string;
+}
+
+/**
+ * Apply human edits to a staged packet. The packet is re-staged, so its
+ * fingerprint changes and any existing approval is dropped — an edited packet
+ * must be reviewed and approved again.
+ */
+export async function editApplication(
+  id: number,
+  edits: PacketEdits,
+  now: number
+): Promise<EditResult> {
+  if (!hasEdits(edits)) return { ok: false, error: "No edits supplied." };
+
+  const job = await getJob(id);
+  if (!job) return { ok: false, error: "Posting not found" };
+  const current = job.application;
+  if (!current) {
+    return { ok: false, error: "No application packet is staged for this posting." };
+  }
+  if (current.status === "submitted") {
+    return { ok: false, error: "This application is already marked as submitted." };
+  }
+
+  const packet = applyPacketEdits(current, edits, await packetContext(job), now);
+
+  if (hasDb) {
+    await dbUpsertApplication(id, packet, now);
+    const updated = await dbGetJob(id);
+    return updated ? { ok: true, job: updated } : { ok: false, error: "Posting not found" };
+  }
+
+  job.application = packet;
+  return { ok: true, job };
+}
+
+export interface ApproveResult {
+  ok: boolean;
+  job?: JobView;
+  error?: string;
+  code?: RefusalCode | "not-found";
+}
+
+/**
+ * Record an explicit human approval of a packet. The caller must echo the
+ * exact fingerprint and URL that were displayed, and the URL must still be
+ * allowlisted. Approval is a review record — it submits nothing.
+ */
+export async function approveApplication(
+  id: number,
+  input: { fingerprint: string; url: string },
+  now: number
+): Promise<ApproveResult> {
+  const job = await getJob(id);
+  if (!job) return { ok: false, error: "Posting not found", code: "not-found" };
+
+  const ctx = await packetContext(job);
+  const decision = evaluateApproval({
+    packet: job.application,
+    fingerprint: input.fingerprint,
+    url: input.url,
+    allowlist: ctx.allowlist,
+    now,
+  });
+  if (!decision.ok) return { ok: false, error: decision.error, code: decision.code };
+
+  if (hasDb) {
+    await dbSetApproval(id, decision.approval, now);
+    const updated = await dbGetJob(id);
+    return updated ? { ok: true, job: updated } : { ok: false, error: "Posting not found" };
+  }
+
+  job.application!.approval = decision.approval;
+  return { ok: true, job };
+}
+
+export interface OpenResult {
+  ok: boolean;
+  /** The approved, allowlisted URL to open manually. Never fetched here. */
+  url?: string;
+  domain?: string | null;
+  approvedAt?: string;
+  notice?: string;
+  error?: string;
+  code?: RefusalCode | "not-found";
+}
+
+/**
+ * Return the application URL for an approved packet so the user can open it in
+ * their own browser. This performs no network request: it looks the URL up,
+ * re-checks the allowlist and the approval, and hands the string back.
+ */
+export async function openApplication(
+  id: number,
+  fingerprint: string
+): Promise<OpenResult> {
+  const job = await getJob(id);
+  if (!job) return { ok: false, error: "Posting not found", code: "not-found" };
+
+  const ctx = await packetContext(job);
+  const decision = evaluateOpen({
+    packet: job.application,
+    fingerprint,
+    allowlist: ctx.allowlist,
+  });
+  if (!decision.ok) return { ok: false, error: decision.error, code: decision.code };
+
+  return {
+    ok: true,
+    url: decision.url,
+    domain: decision.domain,
+    approvedAt: decision.approvedAt,
+    notice: decision.notice,
+  };
+}
+
+async function dbSetApproval(
+  postingId: number,
+  approval: ApprovalRecord,
+  now: number
+): Promise<void> {
+  const existing = await db
+    .select({ id: applications.id })
+    .from(applications)
+    .where(eq(applications.postingId, postingId))
+    .orderBy(desc(applications.id))
+    .limit(1);
+  if (existing.length === 0) return;
+  await db
+    .update(applications)
+    .set({
+      approvedFingerprint: approval.fingerprint,
+      approvedUrl: approval.url,
+      approvedAt: new Date(approval.approvedAt),
+      updatedAt: new Date(now),
+    })
+    .where(eq(applications.id, existing[0].id));
 }
 
 function pickResumeVersion(job: JobView): string {

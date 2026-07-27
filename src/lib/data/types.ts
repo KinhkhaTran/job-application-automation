@@ -1,7 +1,10 @@
 import type { PostingStatus } from "@/lib/scrapers/statusTransitions";
 import type { HandoffDecision } from "@/lib/apply/handoff";
+import type { ApprovalRecord } from "@/lib/apply/approval";
+import type { PacketProvenance } from "@/lib/apply/provenance";
 
 export type { PostingStatus };
+export type { ApprovalRecord, PacketProvenance };
 
 export type AtsType =
   | "greenhouse"
@@ -27,6 +30,15 @@ export interface ApplicationPacket {
    * ever submitted automatically.
    */
   handoff?: HandoffDecision;
+  /** Where each reviewable field came from and what still needs the user. */
+  provenance: PacketProvenance[];
+  /** Digest of the reviewable content; see lib/apply/fingerprint.ts. */
+  fingerprint: string;
+  /**
+   * The explicit human approval of this exact packet, or null. Approval is a
+   * review record only — it never submits anything.
+   */
+  approval: ApprovalRecord | null;
 }
 
 /** Denormalized posting + company + application, ready for the UI. */

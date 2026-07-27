@@ -108,6 +108,15 @@ export const applications = pgTable("applications", {
   applicationDomain: text("application_domain"),
   handoffAllowed: boolean("handoff_allowed"),
   handoffReason: text("handoff_reason"),
+  // Human-review gate. packet_fingerprint digests the reviewable content of
+  // the packet; the approved_* columns record one explicit human approval of
+  // that exact content and URL. An approval whose fingerprint or URL no longer
+  // matches the packet is stale and is treated as no approval at all.
+  packetFingerprint: text("packet_fingerprint"),
+  provenance: text("provenance"), // JSON: PacketProvenance[]
+  approvedFingerprint: text("approved_fingerprint"),
+  approvedUrl: text("approved_url"),
+  approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
