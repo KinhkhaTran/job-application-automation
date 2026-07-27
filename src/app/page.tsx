@@ -37,6 +37,21 @@ export default async function OverviewPage() {
         action={<ScanButton />}
       />
 
+      {/* Build-status readout — the whole search condensed to one log line. */}
+      <div className="card mb-6 flex flex-wrap items-center gap-x-5 gap-y-1.5 px-5 py-3 font-mono text-xs">
+        <span className="flex items-center gap-2 text-zinc-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-signal" />
+          searching
+        </span>
+        <Readout label="tracked" value={stats.totalPostings} />
+        <Readout label="new-grad" value={stats.newGrad} />
+        <Readout label="staged" value={stats.readyToApply} accent />
+        <Readout label="submitted" value={stats.applied + stats.interviewing + stats.offers} />
+        <span className="ml-auto text-zinc-500">
+          <span className="text-emerald-400">+{stats.appliedThisWeek}</span> this week
+        </span>
+      </div>
+
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Postings tracked"
@@ -68,12 +83,12 @@ export default async function OverviewPage() {
         {/* Top matches */}
         <section className="card lg:col-span-3">
           <div className="flex items-center justify-between border-b border-hair px-5 py-4">
-            <h2 className="text-sm font-semibold text-zinc-100">Top matches to review</h2>
+            <h2 className="eyebrow text-zinc-300">Top matches to review</h2>
             <Link
               href="/jobs"
-              className="inline-flex items-center gap-1 text-xs text-brand-300 hover:text-brand-200"
+              className="inline-flex items-center gap-1 font-mono text-xs text-brand-400 hover:text-brand-300"
             >
-              All jobs <ArrowUpRight width={12} height={12} />
+              all jobs <ArrowUpRight width={12} height={12} />
             </Link>
           </div>
           <div className="divide-y divide-hair">
@@ -101,7 +116,7 @@ export default async function OverviewPage() {
         {/* Recent activity */}
         <section className="card lg:col-span-2">
           <div className="border-b border-hair px-5 py-4">
-            <h2 className="text-sm font-semibold text-zinc-100">Recent activity</h2>
+            <h2 className="eyebrow text-zinc-300">Recent activity</h2>
           </div>
           <ul className="divide-y divide-hair">
             {recent.map((job) => (
@@ -120,5 +135,24 @@ export default async function OverviewPage() {
         </section>
       </div>
     </>
+  );
+}
+
+function Readout({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: boolean;
+}) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="text-zinc-600">{label}</span>
+      <span className={accent ? "font-semibold text-brand-400" : "font-semibold text-zinc-200"}>
+        {value}
+      </span>
+    </span>
   );
 }

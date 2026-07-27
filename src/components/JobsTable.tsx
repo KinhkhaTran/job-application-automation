@@ -56,18 +56,18 @@ export function JobsTable({ jobs, now }: { jobs: JobView[]; now: number }) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search company, role, location…"
-            className="w-full rounded-xl border border-hair bg-canvas py-2 pl-9 pr-3 text-sm text-zinc-200 outline-none transition-colors placeholder:text-zinc-600 focus:border-brand-400/50"
+            className="w-full rounded-lg border border-hair bg-canvas py-2 pl-9 pr-3 text-sm text-zinc-200 outline-none transition-colors placeholder:text-zinc-600 focus:border-brand-400/50"
           />
         </div>
-        <div className="flex items-center gap-1 rounded-xl border border-hair bg-canvas p-1">
+        <div className="flex items-center gap-1 rounded-lg border border-hair bg-canvas p-1">
           {FILTERS.map((f) => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
               className={cn(
-                "rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
+                "rounded-md px-2.5 py-1.5 font-mono text-xs transition-colors",
                 filter === f.key
-                  ? "bg-white/[0.08] text-zinc-100"
+                  ? "bg-white/[0.08] text-brand-300"
                   : "text-zinc-500 hover:text-zinc-300"
               )}
             >
@@ -78,7 +78,7 @@ export function JobsTable({ jobs, now }: { jobs: JobView[]; now: number }) {
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as Sort)}
-          className="rounded-xl border border-hair bg-canvas px-3 py-2 text-xs text-zinc-300 outline-none focus:border-brand-400/50"
+          className="rounded-lg border border-hair bg-canvas px-3 py-2 font-mono text-xs text-zinc-300 outline-none focus:border-brand-400/50"
         >
           <option value="match">Sort: Best match</option>
           <option value="recent">Sort: Most recent</option>

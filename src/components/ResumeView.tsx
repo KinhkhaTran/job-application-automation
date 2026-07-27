@@ -114,9 +114,7 @@ export function ResumeView({ resume }: { resume: ResumeData }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-6">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-zinc-500">
-        {title}
-      </h2>
+      <h2 className="eyebrow mb-3">{title}</h2>
       {children}
     </section>
   );

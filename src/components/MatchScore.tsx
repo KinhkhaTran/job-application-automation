@@ -12,13 +12,13 @@ export function MatchScore({ score }: { score: number }) {
   return (
     <span
       className={cn(
-        "num inline-flex min-w-[3.25rem] items-center justify-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold",
+        "num inline-flex min-w-[3.25rem] items-center justify-center gap-0.5 rounded-md border px-2 py-1 text-xs font-semibold",
         TIER[tier]
       )}
       title={`Fit score: ${score}/100`}
     >
       {score}
-      <span className="opacity-50">%</span>
+      <span className="text-[10px] opacity-50">%</span>
     </span>
   );
 }

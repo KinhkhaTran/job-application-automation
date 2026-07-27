@@ -5,40 +5,49 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Surfaces — a cool near-black stack with subtle steps.
-        canvas: "#0A0B0E",
-        surface: "#101218",
-        surface2: "#161922",
-        elevated: "#1C2029",
-        hair: "rgba(255,255,255,0.07)",
-        hair2: "rgba(255,255,255,0.12)",
-        // Brand — a soft electric violet.
+        // Surfaces — a cool slate instrument panel with subtle steps.
+        canvas: "#0B0E13",
+        surface: "#111621",
+        surface2: "#161C28",
+        elevated: "#1C2432",
+        // Hairlines are cool slate, not white — etched-panel lines.
+        hair: "rgba(148,163,184,0.12)",
+        hair2: "rgba(148,163,184,0.22)",
+        // Brand — amber CRT phosphor. The "active signal" of the console.
         brand: {
-          DEFAULT: "#7C6CF0",
-          50: "#EFEDFE",
-          100: "#DED9FD",
-          200: "#BDB4FB",
-          300: "#9C8EF6",
-          400: "#8878F2",
-          500: "#7C6CF0",
-          600: "#5B47E0",
-          700: "#4835C4",
-          800: "#372A96",
-          900: "#26205E",
+          DEFAULT: "#E8A33D",
+          50: "#FBF4E5",
+          100: "#F8E8C8",
+          200: "#F2D293",
+          300: "#EDBB63",
+          400: "#E8A33D",
+          500: "#DB8F26",
+          600: "#B9741C",
+          700: "#8E5817",
+          800: "#5F3C13",
+          900: "#38240D",
         },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
         mono: ["var(--font-mono)"],
       },
+      letterSpacing: {
+        kicker: "0.18em",
+      },
       boxShadow: {
-        card: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 8px 24px -12px rgba(0,0,0,0.6)",
-        glow: "0 0 0 1px rgba(124,108,240,0.4), 0 8px 30px -8px rgba(124,108,240,0.45)",
+        // Quiet panel depth — a hairline top edge plus a soft drop.
+        card: "0 1px 0 0 rgba(255,255,255,0.03) inset, 0 10px 30px -18px rgba(0,0,0,0.7)",
+        glow: "0 0 0 1px rgba(232,163,61,0.35), 0 10px 34px -10px rgba(232,163,61,0.4)",
       },
       keyframes: {
         "fade-in": {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "pulse-signal": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.4" },
         },
         shimmer: {
           "100%": { transform: "translateX(100%)" },
@@ -46,6 +55,7 @@ export default {
       },
       animation: {
         "fade-in": "fade-in 0.3s ease-out both",
+        "pulse-signal": "pulse-signal 1.8s ease-in-out infinite",
       },
     },
   },

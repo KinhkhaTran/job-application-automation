@@ -72,7 +72,7 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
   return (
     <>
       {alreadyApplied ? (
-        <span className="chip border-emerald-400/25 bg-emerald-400/10 text-emerald-300">
+        <span className="chip border-teal-400/25 bg-teal-400/10 text-teal-300">
           <Check width={13} height={13} /> Submitted
         </span>
       ) : job.application?.status === "ready" ? (
@@ -139,7 +139,7 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
             </div>
 
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <h3 className="eyebrow mb-2">
                 Cover letter draft
               </h3>
               <pre className="whitespace-pre-wrap rounded-xl border border-hair bg-canvas p-4 font-sans text-sm leading-relaxed text-zinc-300">
@@ -148,7 +148,7 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
             </section>
 
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <h3 className="eyebrow mb-2">
                 Screening answers
               </h3>
               <dl className="space-y-2.5">
