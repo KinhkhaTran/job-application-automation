@@ -8,8 +8,9 @@ const MODEL = "claude-haiku-4-5";
 
 const SYSTEM =
   "You extract structured data from a résumé. Only use information that is " +
-  "actually present in the document. Use null for any field that is missing — " +
-  "never guess, infer, or fabricate details.";
+  'actually present in the document. Use an empty string "" for any field that ' +
+  "is missing, and omit list entries you cannot fill — never guess, infer, or " +
+  "fabricate details.";
 
 // Created lazily so importing this module during build/tests (no API key) is safe.
 let client: Anthropic | null = null;

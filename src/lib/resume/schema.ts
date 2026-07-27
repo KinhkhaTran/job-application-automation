@@ -1,37 +1,43 @@
 import { z } from "zod";
 
-// Structured shape Claude extracts from a résumé. Every field is required in
-// the JSON schema (so structured-output validation is strict) but nullable, so
-// the model emits null for anything the document doesn't contain rather than
-// inventing it.
+// A required string that tolerates the model emitting null / a non-string:
+// `.catch("")` coerces any invalid value to "" during validation, while still
+// generating a plain (union-free) string in the JSON schema sent to Claude.
+// This matters twice over: LLMs often emit null for "missing" despite the
+// prompt, and Claude's structured-output compiler caps a schema at 16
+// union-or-array-typed parameters — so `.nullable()` on every field is out.
+const field = z.string().catch("");
+
+// Structured shape Claude extracts from a résumé. The model is asked to use ""
+// for anything the document doesn't contain; `field` backstops stray nulls.
 export const ParsedResumeSchema = z.object({
-  fullName: z.string().nullable(),
-  email: z.string().nullable(),
-  phone: z.string().nullable(),
-  location: z.string().nullable(),
-  linkedinUrl: z.string().nullable(),
-  githubUrl: z.string().nullable(),
-  portfolioUrl: z.string().nullable(),
-  summary: z.string().nullable(),
-  skills: z.array(z.string()),
+  fullName: field,
+  email: field,
+  phone: field,
+  location: field,
+  linkedinUrl: field,
+  githubUrl: field,
+  portfolioUrl: field,
+  summary: field,
+  skills: z.array(field),
   education: z.array(
     z.object({
-      school: z.string(),
-      degree: z.string().nullable(),
-      fieldOfStudy: z.string().nullable(),
-      startDate: z.string().nullable(),
-      endDate: z.string().nullable(),
-      gpa: z.string().nullable(),
+      school: field,
+      degree: field,
+      fieldOfStudy: field,
+      startDate: field,
+      endDate: field,
+      gpa: field,
     })
   ),
   experience: z.array(
     z.object({
-      company: z.string(),
-      title: z.string().nullable(),
-      location: z.string().nullable(),
-      startDate: z.string().nullable(),
-      endDate: z.string().nullable(),
-      description: z.string().nullable(),
+      company: field,
+      title: field,
+      location: field,
+      startDate: field,
+      endDate: field,
+      description: field,
     })
   ),
 });
