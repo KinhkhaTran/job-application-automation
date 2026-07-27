@@ -5,8 +5,8 @@ import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
-export default function JobsPage() {
-  const jobs = listJobs();
+export default async function JobsPage() {
+  const jobs = await listJobs();
   const now = Date.now();
 
   return (

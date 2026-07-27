@@ -7,14 +7,6 @@ import * as schema from "./schema";
 // session pooler, or transaction pooler). See .env.example for the exact
 // Supabase connection-string formats.
 
-if (!process.env.DATABASE_URL) {
-  // In test / build environments without a real DB, we skip connection.
-  // Real queries will fail if DATABASE_URL is absent — set it before running the app.
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("DATABASE_URL environment variable is required in production");
-  }
-}
-
 const client = process.env.DATABASE_URL
   ? postgres(process.env.DATABASE_URL, {
       // Supabase's transaction pooler (port 6543, PgBouncer) does not support
@@ -25,9 +17,23 @@ const client = process.env.DATABASE_URL
     })
   : null;
 
+// Without DATABASE_URL (tests, builds, the sample-data dashboard) importing
+// this module is fine; any actual query throws a clear error instead of
+// failing at import time. Callers should gate DB access on `hasDb`.
+const unconfigured = new Proxy(
+  {},
+  {
+    get() {
+      throw new Error(
+        "DATABASE_URL is not configured — set it before running database queries"
+      );
+    },
+  }
+);
+
 export const db = client
   ? drizzle(client, { schema })
-  : (null as unknown as ReturnType<typeof drizzle>);
+  : (unconfigured as ReturnType<typeof drizzle>);
 
 /** True when a real database connection is configured. */
 export const hasDb = client !== null;

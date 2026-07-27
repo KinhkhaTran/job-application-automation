@@ -11,10 +11,10 @@ import { relativeTime } from "@/lib/data/format";
 
 export const dynamic = "force-dynamic";
 
-export default function OverviewPage() {
+export default async function OverviewPage() {
   const now = Date.now();
-  const jobs = listJobs();
-  const stats = getStats(now);
+  const jobs = await listJobs();
+  const stats = await getStats(now);
 
   const topMatches = jobs
     .filter((j) => j.status === "new" || j.status === "reviewing")

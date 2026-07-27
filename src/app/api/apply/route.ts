@@ -13,6 +13,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "postingId (number) required" }, { status: 400 });
   }
 
-  const result = prepareApplication(id, Date.now());
+  const result = await prepareApplication(id, Date.now());
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
 }
