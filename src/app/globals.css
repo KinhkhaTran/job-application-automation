@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+@layer base {
+  * {
+    border-color: theme("colors.hair");
+  }
+  html,
+  body {
+    @apply bg-canvas text-zinc-200 antialiased;
+    font-family: var(--font-sans);
+  }
+  ::selection {
+    background: rgba(124, 108, 240, 0.35);
+  }
+  /* Refined scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.09);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.16);
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-hair bg-surface shadow-card;
+  }
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-white hover:bg-brand-600 active:bg-brand-700;
+  }
+  .btn-ghost {
+    @apply btn border border-hair bg-transparent text-zinc-300 hover:border-hair2 hover:bg-white/5;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-hair px-2.5 py-1 text-xs font-medium;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Print: résumé page only */
+@media print {
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-clean {
+    box-shadow: none !important;
+    border: none !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+}
