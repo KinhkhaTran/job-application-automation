@@ -1,7 +1,4 @@
 import { desc, eq, inArray } from "drizzle-orm";
-import { runScraper } from "@/lib/scrapers/orchestrator";
-import { MockAdapter } from "@/lib/scrapers/adapters/mock";
-import { COMPANY_TARGETS } from "../../../config/companies";
 import { isValidTransition } from "@/lib/scrapers/statusTransitions";
 import { configuredAllowlist } from "@/lib/apply/allowlist";
 import { invalidateStaleApproval, type ApprovalRecord } from "@/lib/apply/approval";
@@ -19,16 +16,14 @@ import {
   evaluateOpen,
   type RefusalCode,
 } from "@/lib/apply/review";
-import { computeDedupHash } from "@/lib/scrapers/dedup";
+import { draftCoverLetter } from "@/lib/apply/coverLetter";
+import { runDiscovery } from "@/lib/discovery/run";
+import { persistDiscovery } from "@/lib/discovery/persist";
+import { fetchSimplifyListings, persistSimplify } from "@/lib/discovery/simplify";
+import { DISCOVERY_SOURCES } from "../../../config/discovery";
 import { db, hasDb, companies, postings, applications } from "@/lib/db";
 import type { Application, Company, Posting } from "@/lib/db";
 import { scoreJob } from "./scoring";
-import {
-  seedJobs,
-  draftCoverLetter,
-  SAMPLE_COMPANIES,
-  DEFAULT_SCREENING_ANSWERS,
-} from "./sample";
 import { RESUME_VERSIONS } from "./resume";
 import type {
   ApplicationPacket,
@@ -40,10 +35,11 @@ import type {
 
 // ── Data store ───────────────────────────────────────────────────────────────
 // When DATABASE_URL is configured (hasDb), reads and mutations go through the
-// Drizzle schema in src/lib/db/schema.ts. Without it, an in-memory sample
-// store keeps the UI, tests, and builds working with zero configuration. The
-// in-memory state lives on globalThis so it survives Next.js hot-reloads and
-// is shared across server components and API route handlers within a process.
+// Drizzle schema in src/lib/db/schema.ts. Without it, an in-memory store keeps
+// the UI, tests, and builds working with zero configuration. It starts EMPTY —
+// real postings enter only via runScan()/discovery. The in-memory state lives
+// on globalThis so it survives Next.js hot-reloads and is shared across server
+// components and API route handlers within a process.
 
 interface StoreState {
   jobs: JobView[];
@@ -53,7 +49,7 @@ const g = globalThis as unknown as { __jobStore?: StoreState };
 
 function store(): StoreState {
   if (!g.__jobStore) {
-    g.__jobStore = { jobs: seedJobs() };
+    g.__jobStore = { jobs: [] };
   }
   return g.__jobStore;
 }
@@ -281,6 +277,16 @@ export async function getStats(now: number): Promise<DashboardStats> {
 
 // ── Mutations ────────────────────────────────────────────────────────────────
 
+/** Screening answers pre-filled for a staged packet; the human edits them. */
+const DEFAULT_SCREENING_ANSWERS = [
+  { question: "Are you authorized to work in the US?", answer: "Yes." },
+  { question: "Will you require sponsorship?", answer: "No." },
+  {
+    question: "Expected graduation date?",
+    answer: "May 2026 (available full-time from June 2026).",
+  },
+];
+
 export interface PrepareResult {
   ok: boolean;
   job?: JobView;
@@ -342,15 +348,13 @@ export async function prepareApplication(
 }
 
 /**
- * Build the staging context for a posting. Sample-company careers domains join
- * the config-derived allowlist so the no-DB demo data behaves like real
- * allowlisted postings; in DB mode the posting's own careers-page domain is
- * the extra allowlisted host.
+ * Build the staging context for a posting. In DB mode the posting's own
+ * careers-page domain is added to the config-derived allowlist; without a DB
+ * the discovery-source domains in configuredAllowlist() are the whole
+ * allowlist.
  */
 async function packetContext(job: JobView): Promise<PacketContext> {
-  const extraUrls = hasDb
-    ? await dbCareersUrls(job.companyId)
-    : SAMPLE_COMPANIES.map((c) => c.careersUrl);
+  const extraUrls = hasDb ? await dbCareersUrls(job.companyId) : [];
   return {
     postingId: job.id,
     company: job.company,
@@ -631,104 +635,71 @@ export interface ScanResult {
 }
 
 /**
- * The aggregation "cloud script": runs the scraper orchestrator over the
- * configured company targets (mock adapter for now) and merges any new
- * postings into the store, deduplicating by URL (in-memory) or by the
- * dedup-hash unique index (database).
+ * The aggregation "cloud script": runs the real discovery pipeline over the
+ * configured public ATS sources (config/discovery.ts) and merges any new
+ * postings into the store. With a DB, postings are persisted and deduplicated
+ * by the dedup-hash unique index; without one, they merge into the in-memory
+ * store, deduplicated by URL.
  */
 export async function runScan(now: number): Promise<ScanResult> {
-  const adapter = new MockAdapter();
-  if (hasDb) return dbRunScan(adapter, now);
+  const result = await runDiscovery(DISCOVERY_SOURCES);
 
+  if (hasDb) {
+    const ts = new Date(now);
+    const summary = await persistDiscovery(result, DISCOVERY_SOURCES, ts);
+
+    // Also pull the SimplifyJobs New-Grad feed (the high-volume source).
+    // Isolated so a feed hiccup never fails the official-ATS scan.
+    let simplifyFound = 0;
+    let simplifyAdded = 0;
+    try {
+      const listings = await fetchSimplifyListings();
+      const s = await persistSimplify(listings, ts);
+      simplifyFound = s.postingsFound;
+      simplifyAdded = s.postingsInserted;
+    } catch {
+      /* leave Simplify counts at 0 on failure */
+    }
+
+    return {
+      found: result.totals.postingsFound + simplifyFound,
+      added: summary.postingsInserted + simplifyAdded,
+      jobs: await listJobs(),
+    };
+  }
+
+  const atsBySource = new Map(DISCOVERY_SOURCES.map((s) => [s.companyId, s.ats]));
   const existingUrls = new Set(store().jobs.map((j) => j.url));
   let nextId = Math.max(0, ...store().jobs.map((j) => j.id)) + 1;
-  let found = 0;
   let added = 0;
 
-  for (const target of COMPANY_TARGETS) {
-    // checkRobots: false — the mock adapter makes no outbound requests, and
-    // we avoid a robots.txt fetch in restricted/offline environments.
-    const result = await runScraper(adapter, target, { checkRobots: false });
-    for (const p of result.postings) {
-      found += 1;
-      if (existingUrls.has(p.url)) continue;
-      existingUrls.add(p.url);
-      const job: JobView = {
-        id: nextId++,
-        companyId: target.companyId,
-        company: target.companyName,
-        atsType: "unknown",
+  for (const p of result.postings) {
+    if (existingUrls.has(p.url)) continue;
+    existingUrls.add(p.url);
+    store().jobs.push({
+      id: nextId++,
+      companyId: p.companyId,
+      company: p.companyName,
+      atsType: atsBySource.get(p.companyId) ?? "unknown",
+      title: p.title,
+      url: p.url,
+      location: p.location,
+      description: p.description,
+      source: p.source,
+      postedDate: p.postedAt,
+      foundDate: new Date(now).toISOString(),
+      isNewGrad: p.isNewGrad,
+      requiredYearsMin: p.requiredYearsMin,
+      status: "new",
+      matchScore: scoreJob({
         title: p.title,
-        url: p.url,
-        location: p.location,
-        description: p.description,
-        source: p.source,
-        postedDate: p.postedAt,
-        foundDate: new Date(now).toISOString(),
         isNewGrad: p.isNewGrad,
         requiredYearsMin: p.requiredYearsMin,
-        status: "new",
-        matchScore: scoreJob({
-          title: p.title,
-          isNewGrad: p.isNewGrad,
-          requiredYearsMin: p.requiredYearsMin,
-        }),
-        application: null,
-      };
-      store().jobs.push(job);
-      added += 1;
-    }
+      }),
+      application: null,
+    });
+    added += 1;
   }
 
-  return { found, added, jobs: await listJobs() };
-}
-
-async function dbRunScan(adapter: MockAdapter, now: number): Promise<ScanResult> {
-  let found = 0;
-  let added = 0;
-
-  for (const target of COMPANY_TARGETS) {
-    // Companies are upserted by unique name; the DB id may differ from the
-    // local config id, so the dedup hash is recomputed against the DB id
-    // (matching src/lib/discovery/persist.ts).
-    const dbCompanyId = await dbResolveCompany(target.companyName, target.careersUrl);
-    const result = await runScraper(adapter, target, { checkRobots: false });
-    for (const p of result.postings) {
-      found += 1;
-      const inserted = await db
-        .insert(postings)
-        .values({
-          companyId: dbCompanyId,
-          title: p.title,
-          url: p.url,
-          location: p.location,
-          description: p.description,
-          postedDate: p.postedAt ? new Date(p.postedAt) : null,
-          foundDate: new Date(now),
-          dedupHash: computeDedupHash(dbCompanyId, p.url),
-          isNewGrad: p.isNewGrad,
-          requiredYearsMin: p.requiredYearsMin,
-          source: p.source,
-        })
-        .onConflictDoNothing({ target: postings.dedupHash })
-        .returning({ id: postings.id });
-      if (inserted.length > 0) added += 1;
-    }
-  }
-
-  return { found, added, jobs: await listJobs() };
-}
-
-async function dbResolveCompany(name: string, careersUrl: string): Promise<number> {
-  const existing = await db
-    .select({ id: companies.id })
-    .from(companies)
-    .where(eq(companies.name, name))
-    .limit(1);
-  if (existing.length > 0) return existing[0].id;
-  const inserted = await db
-    .insert(companies)
-    .values({ name, careersUrl })
-    .returning({ id: companies.id });
-  return inserted[0].id;
+  return { found: result.totals.postingsFound, added, jobs: await listJobs() };
 }

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji",
     "Segoe UI Emoji";
@@ -17,11 +17,17 @@
   }
   html,
   body {
-    @apply bg-canvas text-zinc-200 antialiased;
+    @apply bg-canvas text-slate-700 antialiased;
     font-family: var(--font-sans);
   }
   ::selection {
-    background: rgba(124, 108, 240, 0.35);
+    background: rgba(79, 70, 229, 0.18);
+  }
+  /* Keyboard focus is always visible — indigo, matching the primary signal. */
+  :focus-visible {
+    outline: 2px solid theme("colors.brand.400");
+    outline-offset: 2px;
+    border-radius: 4px;
   }
   /* Refined scrollbars */
   ::-webkit-scrollbar {
@@ -29,35 +35,56 @@
     height: 10px;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.09);
+    background: rgba(15, 23, 42, 0.16);
     border-radius: 8px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.16);
+    background: rgba(15, 23, 42, 0.28);
     background-clip: content-box;
   }
 }
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-hair bg-surface shadow-card;
+    @apply rounded-xl border border-hair bg-surface shadow-card;
   }
   .btn {
-    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
   }
+  /* Indigo signal button — white text for contrast against the brand fill. */
   .btn-primary {
-    @apply btn bg-brand text-white hover:bg-brand-600 active:bg-brand-700;
+    @apply btn bg-brand text-white hover:bg-brand-300 active:bg-brand-500;
   }
   .btn-ghost {
-    @apply btn border border-hair bg-transparent text-zinc-300 hover:border-hair2 hover:bg-white/5;
+    @apply btn border border-hair bg-white text-slate-700 hover:border-hair2 hover:bg-slate-50;
   }
+  /* Tag-like status/label pill — squared like a build label, mono voice. */
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-hair px-2.5 py-1 text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 rounded-md border border-hair px-2 py-0.5 font-mono text-[11px] font-medium;
   }
   .num {
     font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+  }
+  /* Mono path kicker — the "you are here" line above a page title. */
+  .kicker {
+    @apply font-mono text-[11px] font-medium uppercase tracking-kicker text-brand-400;
+  }
+  /* Section eyebrow — small caps utility label. */
+  .eyebrow {
+    @apply font-mono text-[11px] font-semibold uppercase tracking-kicker text-slate-500;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }
 

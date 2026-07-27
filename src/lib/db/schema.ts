@@ -8,6 +8,7 @@ import {
   pgEnum,
   uniqueIndex,
   index,
+  uuid,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -147,6 +148,95 @@ export const scrapeLogs = pgTable("scrape_logs", {
   errorMessage: text("error_message"),
 });
 
+// ── profiles ───────────────────────────────────────────────────────────────
+// One row per authenticated user (Supabase auth.users.id). Holds the common
+// "common-application" fields the pipeline reuses when preparing packets. No
+// cross-schema FK to auth.users — access is scoped by userId in app code.
+export const profiles = pgTable("profiles", {
+  userId: uuid("user_id").primaryKey(),
+  fullName: text("full_name"),
+  email: text("email"),
+  phone: text("phone"),
+  location: text("location"),
+  linkedinUrl: text("linkedin_url"),
+  githubUrl: text("github_url"),
+  portfolioUrl: text("portfolio_url"),
+  // Work authorization — the two questions nearly every US application asks.
+  authorizedToWork: boolean("authorized_to_work"),
+  requiresSponsorship: boolean("requires_sponsorship"),
+  willingToRelocate: boolean("willing_to_relocate"),
+  desiredSalary: text("desired_salary"),
+  availableStartDate: text("available_start_date"),
+  skills: text("skills").array(),
+  summary: text("summary"),
+  onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ── education ──────────────────────────────────────────────────────────────
+export const education = pgTable(
+  "education",
+  {
+    id: serial("id").primaryKey(),
+    userId: uuid("user_id").notNull(),
+    school: text("school").notNull(),
+    degree: text("degree"),
+    fieldOfStudy: text("field_of_study"),
+    // Free-text dates ("May 2026") so parsed résumé values round-trip cleanly.
+    startDate: text("start_date"),
+    endDate: text("end_date"),
+    gpa: text("gpa"),
+    details: text("details"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("education_user_idx").on(t.userId),
+  })
+);
+
+// ── work_experience ────────────────────────────────────────────────────────
+export const workExperience = pgTable(
+  "work_experience",
+  {
+    id: serial("id").primaryKey(),
+    userId: uuid("user_id").notNull(),
+    company: text("company").notNull(),
+    title: text("title"),
+    location: text("location"),
+    startDate: text("start_date"),
+    endDate: text("end_date"),
+    isCurrent: boolean("is_current").notNull().default(false),
+    description: text("description"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("work_experience_user_idx").on(t.userId),
+  })
+);
+
+// ── resumes ────────────────────────────────────────────────────────────────
+// Metadata for a résumé file stored in the private Supabase `resumes` bucket.
+// The original file stays in Storage; parsed text is kept for re-use/re-parse.
+export const resumes = pgTable(
+  "resumes",
+  {
+    id: serial("id").primaryKey(),
+    userId: uuid("user_id").notNull(),
+    fileName: text("file_name").notNull(),
+    storagePath: text("storage_path").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    rawText: text("raw_text"),
+    isPrimary: boolean("is_primary").notNull().default(true),
+    parsedAt: timestamp("parsed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("resumes_user_idx").on(t.userId),
+  })
+);
+
 // ── relations ──────────────────────────────────────────────────────────────
 export const companiesRelations = relations(companies, ({ many }) => ({
   postings: many(postings),
@@ -183,3 +273,11 @@ export type Application = typeof applications.$inferSelect;
 export type NewApplication = typeof applications.$inferInsert;
 export type ApplicationHistory = typeof applicationHistory.$inferSelect;
 export type ScrapeLog = typeof scrapeLogs.$inferSelect;
+export type Profile = typeof profiles.$inferSelect;
+export type NewProfile = typeof profiles.$inferInsert;
+export type Education = typeof education.$inferSelect;
+export type NewEducation = typeof education.$inferInsert;
+export type WorkExperience = typeof workExperience.$inferSelect;
+export type NewWorkExperience = typeof workExperience.$inferInsert;
+export type Resume = typeof resumes.$inferSelect;
+export type NewResume = typeof resumes.$inferInsert;

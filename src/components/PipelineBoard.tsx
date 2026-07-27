@@ -45,13 +45,19 @@ export function PipelineBoard({ jobs }: { jobs: JobView[] }) {
         {COLUMNS.map((col) => {
           const items = jobs.filter((j) => j.status === col.status);
           return (
-            <div key={col.status} className="flex flex-col rounded-2xl border border-hair bg-surface/50">
+            <div key={col.status} className="flex flex-col rounded-xl border border-hair bg-surface/50">
               <div className="flex items-center justify-between border-b border-hair px-3.5 py-3">
-                <span className="flex items-center gap-2 text-sm font-medium text-zinc-200">
-                  <span className={cn("h-2 w-2 rounded-full", STATUS_META[col.status].dot)} />
+                <span className="flex items-center gap-2 font-mono text-[13px] font-medium text-zinc-200">
+                  <span
+                    className={cn(
+                      "h-2 w-2 rounded-full",
+                      STATUS_META[col.status].dot,
+                      STATUS_META[col.status].live && "animate-pulse-signal"
+                    )}
+                  />
                   {col.label}
                 </span>
-                <span className="num rounded-md bg-white/[0.06] px-2 py-0.5 text-xs text-zinc-400">
+                <span className="num rounded-md bg-slate-900/[0.06] px-2 py-0.5 text-xs text-zinc-400">
                   {items.length}
                 </span>
               </div>
@@ -70,9 +76,7 @@ export function PipelineBoard({ jobs }: { jobs: JobView[] }) {
 
       {closed.length > 0 && (
         <div>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-            Closed
-          </h3>
+          <h3 className="eyebrow mb-3">Closed</h3>
           <div className="flex flex-wrap gap-2">
             {closed.map((job) => (
               <span
@@ -102,7 +106,7 @@ function Card({
 }) {
   const next = getValidNextStatuses(job.status).filter((s) => !CLOSED.includes(s) || s !== "skipped");
   return (
-    <div className="animate-fade-in rounded-xl border border-hair bg-surface2 p-3 shadow-card">
+    <div className="animate-fade-in rounded-lg border border-hair bg-surface2 p-3 shadow-card">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-zinc-100">{job.title}</p>
@@ -127,7 +131,7 @@ function Card({
             <button
               key={to}
               onClick={() => onMove(job, to)}
-              className="rounded-lg border border-hair bg-white/[0.02] px-2 py-1 text-[11px] font-medium text-zinc-300 transition-colors hover:border-brand-400/40 hover:text-brand-200"
+              className="rounded-md border border-hair bg-slate-900/[0.02] px-2 py-1 font-mono text-[11px] text-zinc-300 transition-colors hover:border-brand-400/40 hover:text-brand-300"
             >
               → {STATUS_META[to].label}
             </button>

@@ -9,36 +9,52 @@ export function ResumeView({ resume }: { resume: ResumeData }) {
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">{resume.name}</h1>
         <p className="mt-1 text-base text-brand-300">{resume.headline}</p>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-zinc-400">
-          <span className="inline-flex items-center gap-1.5">
-            <MapPin width={13} height={13} /> {resume.location}
-          </span>
-          <a href={`mailto:${resume.email}`} className="inline-flex items-center gap-1.5 hover:text-zinc-200">
-            <Mail width={13} height={13} /> {resume.email}
-          </a>
-          <span className="inline-flex items-center gap-1.5">
-            <Globe width={13} height={13} /> {resume.website}
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-zinc-500">{resume.github}</span>
+          {resume.location && (
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin width={13} height={13} /> {resume.location}
+            </span>
+          )}
+          {resume.email && (
+            <a href={`mailto:${resume.email}`} className="inline-flex items-center gap-1.5 hover:text-zinc-200">
+              <Mail width={13} height={13} /> {resume.email}
+            </a>
+          )}
+          {resume.website && (
+            <span className="inline-flex items-center gap-1.5">
+              <Globe width={13} height={13} /> {resume.website}
+            </span>
+          )}
+          {resume.github && (
+            <span className="inline-flex items-center gap-1.5 text-zinc-500">{resume.github}</span>
+          )}
+          {resume.linkedin && (
+            <span className="inline-flex items-center gap-1.5 text-zinc-500">{resume.linkedin}</span>
+          )}
         </div>
       </header>
 
       {/* Summary */}
-      <Section title="Summary">
-        <p className="text-sm leading-relaxed text-zinc-300">{resume.summary}</p>
-      </Section>
+      {resume.summary && (
+        <Section title="Summary">
+          <p className="text-sm leading-relaxed text-zinc-300">{resume.summary}</p>
+        </Section>
+      )}
 
       {/* Skills */}
-      <Section title="Skills">
-        <div className="flex flex-wrap gap-1.5">
-          {resume.skills.map((s) => (
-            <span key={s} className="chip border-hair text-zinc-300">
-              {s}
-            </span>
-          ))}
-        </div>
-      </Section>
+      {resume.skills.length > 0 && (
+        <Section title="Skills">
+          <div className="flex flex-wrap gap-1.5">
+            {resume.skills.map((s) => (
+              <span key={s} className="chip border-hair text-zinc-300">
+                {s}
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Experience */}
+      {resume.experience.length > 0 && (
       <Section title="Experience">
         <div className="space-y-5">
           {resume.experience.map((e) => (
@@ -62,8 +78,10 @@ export function ResumeView({ resume }: { resume: ResumeData }) {
           ))}
         </div>
       </Section>
+      )}
 
       {/* Projects */}
+      {resume.projects.length > 0 && (
       <Section title="Projects">
         <div className="grid gap-3 sm:grid-cols-2">
           {resume.projects.map((p) => (
@@ -84,7 +102,7 @@ export function ResumeView({ resume }: { resume: ResumeData }) {
               <p className="mt-1 text-xs leading-relaxed text-zinc-400">{p.description}</p>
               <div className="mt-2 flex flex-wrap gap-1">
                 {p.tech.map((t) => (
-                  <span key={t} className="rounded-md bg-white/[0.05] px-1.5 py-0.5 text-[10px] text-zinc-400">
+                  <span key={t} className="rounded-md bg-slate-900/[0.05] px-1.5 py-0.5 text-[10px] text-zinc-400">
                     {t}
                   </span>
                 ))}
@@ -93,8 +111,10 @@ export function ResumeView({ resume }: { resume: ResumeData }) {
           ))}
         </div>
       </Section>
+      )}
 
       {/* Education */}
+      {resume.education.length > 0 && (
       <Section title="Education">
         {resume.education.map((ed) => (
           <div key={ed.school} className="flex flex-wrap items-baseline justify-between gap-x-4">
@@ -107,6 +127,7 @@ export function ResumeView({ resume }: { resume: ResumeData }) {
           </div>
         ))}
       </Section>
+      )}
     </article>
   );
 }
@@ -114,9 +135,7 @@ export function ResumeView({ resume }: { resume: ResumeData }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-6">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-zinc-500">
-        {title}
-      </h2>
+      <h2 className="eyebrow mb-3">{title}</h2>
       {children}
     </section>
   );
