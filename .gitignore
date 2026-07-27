@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+.turbo/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# TypeScript incremental/build artifacts
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
