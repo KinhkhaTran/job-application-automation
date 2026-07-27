@@ -3,11 +3,56 @@ jest.mock("@/lib/scrapers/robots", () => ({
 }));
 
 import { runScraper } from "@/lib/scrapers/orchestrator";
-import { MockAdapter, MOCK_POSTINGS } from "@/lib/scrapers/adapters/mock";
 import { isUrlAllowed } from "@/lib/scrapers/robots";
-import type { AtsAdapter, CompanyTarget } from "@/lib/scrapers/types";
+import type { AtsAdapter, CompanyTarget, RawPosting } from "@/lib/scrapers/types";
 
 const mockedIsUrlAllowed = jest.mocked(isUrlAllowed);
+
+// Local fixture postings — a small hand-built set exercising the classifier
+// (new-grad / entry-level / senior) and experience-year extraction. Kept in the
+// test so the app source ships no mock adapter.
+const FIXTURE_POSTINGS: RawPosting[] = [
+  {
+    externalId: "fixture-001",
+    title: "Software Engineer, New Grad",
+    url: "https://careers.example.com/jobs/1",
+    location: "San Francisco, CA",
+    description:
+      "Exciting opportunity for a new grad SWE. We welcome candidates with 0-1 years of experience.",
+    postedAt: "2026-07-01T00:00:00Z",
+    source: "fixture",
+    rawData: { id: "fixture-001" },
+  },
+  {
+    externalId: "fixture-002",
+    title: "Senior Software Engineer",
+    url: "https://careers.example.com/jobs/2",
+    location: "Remote",
+    description:
+      "Seeking a senior engineer with 5+ years of professional experience.",
+    postedAt: "2026-07-01T00:00:00Z",
+    source: "fixture",
+    rawData: { id: "fixture-002" },
+  },
+  {
+    externalId: "fixture-003",
+    title: "Entry Level Backend Engineer",
+    url: "https://careers.example.com/jobs/3",
+    location: "New York, NY",
+    description:
+      "Entry level position for recent graduates. Class of 2026 grads encouraged to apply.",
+    postedAt: "2026-07-01T00:00:00Z",
+    source: "fixture",
+    rawData: { id: "fixture-003" },
+  },
+];
+
+class FixtureAdapter implements AtsAdapter {
+  readonly name = "fixture";
+  async fetchPostings(_target: CompanyTarget): Promise<RawPosting[]> {
+    return [...FIXTURE_POSTINGS];
+  }
+}
 
 const TEST_TARGET: CompanyTarget = {
   companyId: 42,
@@ -17,10 +62,10 @@ const TEST_TARGET: CompanyTarget = {
 };
 
 describe("runScraper", () => {
-  let adapter: MockAdapter;
+  let adapter: FixtureAdapter;
 
   beforeEach(() => {
-    adapter = new MockAdapter();
+    adapter = new FixtureAdapter();
     mockedIsUrlAllowed.mockResolvedValue(true);
   });
 
@@ -33,7 +78,7 @@ describe("runScraper", () => {
 
     expect(result.skippedByRobots).toBe(false);
     expect(result.errorMessage).toBeUndefined();
-    expect(result.postings.length).toBe(MOCK_POSTINGS.length);
+    expect(result.postings.length).toBe(FIXTURE_POSTINGS.length);
 
     const newGradPosting = result.postings.find((p) => p.title.includes("New Grad"));
     expect(newGradPosting).toBeDefined();
@@ -132,6 +177,6 @@ describe("runScraper", () => {
 
     expect(result.companyId).toBe(TEST_TARGET.companyId);
     expect(result.companyName).toBe(TEST_TARGET.companyName);
-    expect(result.source).toBe("mock");
+    expect(result.source).toBe("fixture");
   });
 });

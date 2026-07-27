@@ -1,0 +1,5 @@
+# Python deps for the Vercel Python Function at api/jobspy/index.py.
+# JobSpy (MIT) scrapes public job-board listings; pandas comes in transitively.
+# Pin to a known-good minor once verified against a deploy; loosen floor if a
+# source's parser regresses. See https://github.com/speedyapply/JobSpy
+python-jobspy>=1.1.76

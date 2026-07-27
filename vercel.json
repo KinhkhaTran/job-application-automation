@@ -3,6 +3,15 @@
     {
       "path": "/api/cron/discover",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/jobspy",
+      "schedule": "0 8 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/jobspy/index.py": {
+      "maxDuration": 300
+    }
+  }
 }
