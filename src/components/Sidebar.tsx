@@ -41,8 +41,8 @@ export function Sidebar({ userEmail }: { userEmail?: string | null }) {
               className={cn(
                 "group flex items-center gap-3 rounded-lg px-3 py-2 font-mono text-[13px] transition-colors",
                 active
-                  ? "bg-white/[0.05] text-zinc-100"
-                  : "text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200"
+                  ? "bg-slate-900/[0.05] text-zinc-100"
+                  : "text-zinc-400 hover:bg-slate-900/[0.03] hover:text-zinc-200"
               )}
             >
               <Icon
@@ -82,7 +82,7 @@ export function Sidebar({ userEmail }: { userEmail?: string | null }) {
               <button
                 type="submit"
                 title="Sign out"
-                className="flex items-center text-zinc-500 transition-colors hover:text-red-300"
+                className="flex items-center text-zinc-500 transition-colors hover:text-red-600"
               >
                 <LogOut width={15} height={15} />
               </button>

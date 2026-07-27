@@ -7,42 +7,42 @@ const STYLES: Record<
   PostingStatus,
   { label: string; cls: string; dot: string; live?: boolean }
 > = {
-  new: { label: "New", cls: "text-sky-300 bg-sky-400/10 border-sky-400/20", dot: "bg-sky-400" },
+  new: { label: "New", cls: "text-sky-700 bg-sky-50 border-sky-200", dot: "bg-sky-500" },
   reviewing: {
     label: "Reviewing",
-    cls: "text-brand-300 bg-brand-500/10 border-brand-400/25",
+    cls: "text-brand-500 bg-brand-50 border-brand-200",
     dot: "bg-brand-400",
     live: true,
   },
   applied: {
     label: "Applied",
-    cls: "text-teal-300 bg-teal-400/10 border-teal-400/25",
-    dot: "bg-teal-400",
+    cls: "text-teal-700 bg-teal-50 border-teal-200",
+    dot: "bg-teal-500",
   },
   interviewing: {
     label: "Interviewing",
-    cls: "text-violet-300 bg-violet-400/10 border-violet-400/20",
-    dot: "bg-violet-400",
+    cls: "text-violet-700 bg-violet-50 border-violet-200",
+    dot: "bg-violet-500",
     live: true,
   },
   offer: {
     label: "Offer",
-    cls: "text-emerald-300 bg-emerald-400/10 border-emerald-400/20",
-    dot: "bg-emerald-400",
+    cls: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    dot: "bg-emerald-500",
   },
   rejected: {
     label: "Rejected",
-    cls: "text-rose-300 bg-rose-400/10 border-rose-400/20",
-    dot: "bg-rose-400",
+    cls: "text-rose-700 bg-rose-50 border-rose-200",
+    dot: "bg-rose-500",
   },
   ghosted: {
     label: "Ghosted",
-    cls: "text-zinc-400 bg-zinc-400/10 border-zinc-400/20",
-    dot: "bg-zinc-500",
+    cls: "text-zinc-500 bg-zinc-900 border-hair",
+    dot: "bg-zinc-600",
   },
   skipped: {
     label: "Skipped",
-    cls: "text-zinc-500 bg-zinc-500/10 border-zinc-500/20",
+    cls: "text-zinc-500 bg-zinc-900 border-hair",
     dot: "bg-zinc-600",
   },
 };

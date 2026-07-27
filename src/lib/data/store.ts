@@ -5,6 +5,7 @@ import { configuredAllowlist } from "@/lib/apply/allowlist";
 import { draftCoverLetter } from "@/lib/apply/coverLetter";
 import { runDiscovery } from "@/lib/discovery/run";
 import { persistDiscovery } from "@/lib/discovery/persist";
+import { fetchSimplifyListings, persistSimplify } from "@/lib/discovery/simplify";
 import { DISCOVERY_SOURCES } from "../../../config/discovery";
 import { db, hasDb, companies, postings, applications } from "@/lib/db";
 import type { Application, Company, Posting } from "@/lib/db";
@@ -386,10 +387,25 @@ export async function runScan(now: number): Promise<ScanResult> {
   const result = await runDiscovery(DISCOVERY_SOURCES);
 
   if (hasDb) {
-    const summary = await persistDiscovery(result, DISCOVERY_SOURCES, new Date(now));
+    const ts = new Date(now);
+    const summary = await persistDiscovery(result, DISCOVERY_SOURCES, ts);
+
+    // Also pull the SimplifyJobs New-Grad feed (the high-volume source).
+    // Isolated so a feed hiccup never fails the official-ATS scan.
+    let simplifyFound = 0;
+    let simplifyAdded = 0;
+    try {
+      const listings = await fetchSimplifyListings();
+      const s = await persistSimplify(listings, ts);
+      simplifyFound = s.postingsFound;
+      simplifyAdded = s.postingsInserted;
+    } catch {
+      /* leave Simplify counts at 0 on failure */
+    }
+
     return {
-      found: result.totals.postingsFound,
-      added: summary.postingsInserted,
+      found: result.totals.postingsFound + simplifyFound,
+      added: summary.postingsInserted + simplifyAdded,
       jobs: await listJobs(),
     };
   }

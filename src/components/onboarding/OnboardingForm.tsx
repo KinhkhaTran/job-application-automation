@@ -175,7 +175,7 @@ export function OnboardingForm({ mode, initial }: OnboardingFormProps) {
       </div>
 
       {state.error && (
-        <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
           {state.error}
         </p>
       )}
@@ -185,7 +185,7 @@ export function OnboardingForm({ mode, initial }: OnboardingFormProps) {
           type="button"
           disabled={step === 0}
           onClick={() => setStep((n) => Math.max(0, n - 1))}
-          className="rounded-lg border border-hair px-4 py-2 text-sm text-zinc-300 disabled:opacity-40 hover:bg-white/[0.04]"
+          className="rounded-lg border border-hair px-4 py-2 text-sm text-zinc-300 disabled:opacity-40 hover:bg-slate-900/[0.04]"
         >
           Back
         </button>
@@ -240,7 +240,7 @@ function Stepper({ step }: { step: number }) {
           <div
             className={
               "h-1 rounded-full " +
-              (i <= step ? "bg-brand-500" : "bg-white/[0.08]")
+              (i <= step ? "bg-brand-500" : "bg-slate-900/[0.08]")
             }
           />
           <span
@@ -296,12 +296,12 @@ function ResumeStep({
       </label>
 
       {uploadDone && !uploading && (
-        <p className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+        <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
           Parsed “{uploadDone}”. Review the pre-filled fields in the next steps.
         </p>
       )}
       {uploadError && (
-        <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+        <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
           {uploadError}
         </p>
       )}
@@ -373,7 +373,7 @@ function ListStep({
         <button
           type="button"
           onClick={() => onChange([...rows, { ...empty }])}
-          className="rounded-lg border border-hair px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/[0.04]"
+          className="rounded-lg border border-hair px-3 py-1.5 text-xs text-zinc-300 hover:bg-slate-900/[0.04]"
         >
           + Add
         </button>
@@ -420,7 +420,7 @@ function ListStep({
             <button
               type="button"
               onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
-              className="mt-2 text-[11px] text-zinc-500 hover:text-red-300"
+              className="mt-2 text-[11px] text-zinc-500 hover:text-red-600"
             >
               Remove
             </button>

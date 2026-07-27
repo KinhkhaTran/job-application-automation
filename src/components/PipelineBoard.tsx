@@ -57,7 +57,7 @@ export function PipelineBoard({ jobs }: { jobs: JobView[] }) {
                   />
                   {col.label}
                 </span>
-                <span className="num rounded-md bg-white/[0.06] px-2 py-0.5 text-xs text-zinc-400">
+                <span className="num rounded-md bg-slate-900/[0.06] px-2 py-0.5 text-xs text-zinc-400">
                   {items.length}
                 </span>
               </div>
@@ -131,7 +131,7 @@ function Card({
             <button
               key={to}
               onClick={() => onMove(job, to)}
-              className="rounded-md border border-hair bg-white/[0.02] px-2 py-1 font-mono text-[11px] text-zinc-300 transition-colors hover:border-brand-400/40 hover:text-brand-300"
+              className="rounded-md border border-hair bg-slate-900/[0.02] px-2 py-1 font-mono text-[11px] text-zinc-300 transition-colors hover:border-brand-400/40 hover:text-brand-300"
             >
               → {STATUS_META[to].label}
             </button>

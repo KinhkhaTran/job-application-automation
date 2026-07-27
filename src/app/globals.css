@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji",
     "Segoe UI Emoji";
@@ -17,13 +17,13 @@
   }
   html,
   body {
-    @apply bg-canvas text-slate-300 antialiased;
+    @apply bg-canvas text-slate-700 antialiased;
     font-family: var(--font-sans);
   }
   ::selection {
-    background: rgba(232, 163, 61, 0.28);
+    background: rgba(79, 70, 229, 0.18);
   }
-  /* Keyboard focus is always visible — amber, matching the primary signal. */
+  /* Keyboard focus is always visible — indigo, matching the primary signal. */
   :focus-visible {
     outline: 2px solid theme("colors.brand.400");
     outline-offset: 2px;
@@ -35,13 +35,13 @@
     height: 10px;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.14);
+    background: rgba(15, 23, 42, 0.16);
     border-radius: 8px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(148, 163, 184, 0.24);
+    background: rgba(15, 23, 42, 0.28);
     background-clip: content-box;
   }
 }
@@ -53,12 +53,12 @@
   .btn {
     @apply inline-flex select-none items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
   }
-  /* Amber signal button — dark ink text for contrast against the phosphor. */
+  /* Indigo signal button — white text for contrast against the brand fill. */
   .btn-primary {
-    @apply btn bg-brand text-canvas hover:bg-brand-300 active:bg-brand-500;
+    @apply btn bg-brand text-white hover:bg-brand-300 active:bg-brand-500;
   }
   .btn-ghost {
-    @apply btn border border-hair bg-transparent text-slate-300 hover:border-hair2 hover:bg-white/5;
+    @apply btn border border-hair bg-white text-slate-700 hover:border-hair2 hover:bg-slate-50;
   }
   /* Tag-like status/label pill — squared like a build label, mono voice. */
   .chip {

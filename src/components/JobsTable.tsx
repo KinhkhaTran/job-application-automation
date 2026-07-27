@@ -67,7 +67,7 @@ export function JobsTable({ jobs, now }: { jobs: JobView[]; now: number }) {
               className={cn(
                 "rounded-md px-2.5 py-1.5 font-mono text-xs transition-colors",
                 filter === f.key
-                  ? "bg-white/[0.08] text-brand-300"
+                  ? "bg-slate-900/[0.08] text-brand-300"
                   : "text-zinc-500 hover:text-zinc-300"
               )}
             >
@@ -96,7 +96,7 @@ export function JobsTable({ jobs, now }: { jobs: JobView[]; now: number }) {
           const isOpen = expanded === job.id;
           return (
             <div key={job.id} className="group">
-              <div className="flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-white/[0.02]">
+              <div className="flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-slate-900/[0.02]">
                 <button
                   onClick={() => setExpanded(isOpen ? null : job.id)}
                   className="shrink-0 rounded-md p-1 text-zinc-600 transition-colors hover:text-zinc-300"
@@ -117,12 +117,12 @@ export function JobsTable({ jobs, now }: { jobs: JobView[]; now: number }) {
                       {job.title}
                     </span>
                     {job.isNewGrad && (
-                      <span className="chip shrink-0 border-brand-400/25 bg-brand-500/10 px-2 py-0.5 text-[10px] text-brand-200">
+                      <span className="chip shrink-0 border-brand-200 bg-brand-50 px-2 py-0.5 text-[10px] text-brand-500">
                         New grad
                       </span>
                     )}
                     {job.requiredYearsMin !== null && job.requiredYearsMin >= 3 && (
-                      <span className="chip shrink-0 border-rose-400/25 bg-rose-400/10 px-2 py-0.5 text-[10px] text-rose-300">
+                      <span className="chip shrink-0 border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] text-rose-700">
                         {job.requiredYearsMin}+ yrs
                       </span>
                     )}

@@ -48,7 +48,7 @@ export default async function OverviewPage() {
         <Readout label="staged" value={stats.readyToApply} accent />
         <Readout label="submitted" value={stats.applied + stats.interviewing + stats.offers} />
         <span className="ml-auto text-zinc-500">
-          <span className="text-emerald-400">+{stats.appliedThisWeek}</span> this week
+          <span className="text-emerald-600">+{stats.appliedThisWeek}</span> this week
         </span>
       </div>
 
