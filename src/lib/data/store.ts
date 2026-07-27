@@ -2,8 +2,10 @@ import { runScraper } from "@/lib/scrapers/orchestrator";
 import { MockAdapter } from "@/lib/scrapers/adapters/mock";
 import { COMPANY_TARGETS } from "../../../config/companies";
 import { isValidTransition } from "@/lib/scrapers/statusTransitions";
+import { evaluateHandoff } from "@/lib/apply/handoff";
+import { configuredAllowlist } from "@/lib/apply/allowlist";
 import { scoreJob } from "./scoring";
-import { seedJobs, draftCoverLetter } from "./sample";
+import { seedJobs, draftCoverLetter, SAMPLE_COMPANIES } from "./sample";
 import { RESUME_VERSIONS } from "./resume";
 import type { DashboardStats, JobView, PostingStatus } from "./types";
 
@@ -100,6 +102,9 @@ export function prepareApplication(id: number, now: number): PrepareResult {
   }
 
   const version = pickResumeVersion(job);
+  // Sample-company careers domains join the config-derived allowlist so the
+  // no-DB demo data behaves like real allowlisted postings.
+  const allowlist = configuredAllowlist(SAMPLE_COMPANIES.map((c) => c.careersUrl));
   job.application = {
     status: "ready",
     resumeVersion: version,
@@ -114,6 +119,7 @@ export function prepareApplication(id: number, now: number): PrepareResult {
     ],
     preparedAt: new Date(now).toISOString(),
     submittedDate: null,
+    handoff: evaluateHandoff(job.url, allowlist),
   };
   if (job.status === "new") job.status = "reviewing";
   return { ok: true, job };

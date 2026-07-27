@@ -40,12 +40,46 @@ npm test
 npm run build
 ```
 
-The database commands are available after setting the database URL in `.env.local`:
+## Database (Supabase or any PostgreSQL)
+
+The app connects through a standard `DATABASE_URL` using [postgres.js](https://github.com/porsager/postgres) — no provider-specific driver. For Supabase:
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Dashboard → **Connect** → copy a connection string (see `.env.example` for all three formats):
+   - **Transaction pooler** (port 6543) for serverless/Vercel — prepared statements are already disabled in the client, so this works out of the box.
+   - **Direct connection** (port 5432) for running migrations.
+3. Put it in `.env.local` as `DATABASE_URL=...` (never commit it).
+4. Apply migrations from `drizzle/`:
 
 ```bash
-npm run db:generate
-npm run db:migrate
+npm run db:generate   # regenerate migrations after schema changes
+npm run db:migrate    # apply migrations (use the direct connection string)
 ```
+
+Without `DATABASE_URL`, the dashboard runs entirely on in-memory sample data — tests and builds need no database.
+
+## Job-listing discovery (`npm run discover`)
+
+Read-only discovery over **explicitly configured** public ATS job-board APIs (Greenhouse, Lever, Ashby — the platforms with official public listing APIs). It ships with an empty source list; add companies to `config/discovery.ts` to opt in, then:
+
+```bash
+npm run discover                # fetch all configured sources, JSON on stdout
+npm run discover -- --pretty    # indented JSON (logs go to stderr)
+npm run discover -- --persist   # also upsert into Postgres (needs DATABASE_URL)
+```
+
+Every source run checks robots.txt against the actual endpoint fetched, is rate-limited per domain, validates the external payload, deduplicates across sources, and classifies new-grad fit and required experience years. Per-source errors are isolated and reported in the JSON summary (and in `scrape_logs` when persisting).
+
+## Application handoff — safety boundaries
+
+Applying stays **fully manual**. When a packet is prepared, the posting URL is normalized (credentials stripped, tracking params removed) and checked against an allowlist (configured careers domains + public ATS apply hosts, https only, no private hosts). The dashboard only ever offers an "open in your browser" link — and withholds it, with the reason, when the domain isn't allowlisted.
+
+Hard boundaries, by design:
+
+- No automated login, account creation, or CAPTCHA interaction anywhere.
+- No credential handling: passwords are never read, stored, logged, or sent.
+- No automated application submission to Workday, Greenhouse, Lever, Ashby, or any other ATS.
+- Discovery only calls official public read-only job-board APIs for sources you explicitly configure.
 
 The project uses Next.js App Router, TypeScript, Drizzle/Postgres, Tailwind CSS, Vercel Cron, and an LLM provider planned for later application-packet drafting. The database provider choice remains a documented follow-up decision.
 

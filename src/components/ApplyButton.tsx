@@ -106,9 +106,20 @@ export function ApplyButton({ job, variant = "primary", className }: Props) {
             <span className="mr-auto text-xs text-zinc-500">
               You submit manually — nothing was sent to the ATS.
             </span>
-            <a href={job.url} target="_blank" rel="noreferrer" className="btn-ghost">
-              Open posting <ArrowUpRight width={14} height={14} />
-            </a>
+            {packet?.handoff && !packet.handoff.allowed ? (
+              <span className="text-xs text-amber-400">
+                Link withheld: {packet.handoff.reason}
+              </span>
+            ) : (
+              <a
+                href={packet?.handoff?.url ?? job.url}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-ghost"
+              >
+                Open posting <ArrowUpRight width={14} height={14} />
+              </a>
+            )}
             <button onClick={markApplied} disabled={marking} className="btn-primary">
               {marking ? <Spinner width={14} height={14} /> : <Check width={14} height={14} />}
               Mark as applied
