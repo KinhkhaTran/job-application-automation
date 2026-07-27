@@ -30,6 +30,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const result = setStatus(id, to, Date.now());
+  const result = await setStatus(id, to, Date.now());
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
 }

@@ -102,6 +102,12 @@ export const applications = pgTable("applications", {
   status: applicationStatusEnum("status").notNull().default("draft"),
   submittedDate: timestamp("submitted_date"),
   notes: text("notes"),
+  // Manual-review handoff: normalized application URL and the allowed-domain
+  // decision. The user opens the URL themselves; nothing is auto-submitted.
+  applicationUrl: text("application_url"),
+  applicationDomain: text("application_domain"),
+  handoffAllowed: boolean("handoff_allowed"),
+  handoffReason: text("handoff_reason"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

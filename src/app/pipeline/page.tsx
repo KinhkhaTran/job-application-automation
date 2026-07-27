@@ -4,8 +4,8 @@ import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
-export default function PipelinePage() {
-  const jobs = listJobs();
+export default async function PipelinePage() {
+  const jobs = await listJobs();
 
   return (
     <>

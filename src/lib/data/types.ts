@@ -1,4 +1,5 @@
 import type { PostingStatus } from "@/lib/scrapers/statusTransitions";
+import type { HandoffDecision } from "@/lib/apply/handoff";
 
 export type { PostingStatus };
 
@@ -20,6 +21,12 @@ export interface ApplicationPacket {
   screeningAnswers: { question: string; answer: string }[];
   preparedAt: string; // ISO
   submittedDate: string | null;
+  /**
+   * Manual-review handoff: the normalized application URL plus the
+   * allowed-domain decision. The user opens the URL themselves; nothing is
+   * ever submitted automatically.
+   */
+  handoff?: HandoffDecision;
 }
 
 /** Denormalized posting + company + application, ready for the UI. */
