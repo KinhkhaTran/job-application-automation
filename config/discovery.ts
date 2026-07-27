@@ -1,35 +1,42 @@
 import type { DiscoverySource } from "../src/lib/discovery/types";
 
-// Explicitly configured public job-board sources for `npm run discover`.
-//
-// Discovery is OPT-IN and ships empty: nothing is fetched until you add a
-// company here. Only ATS platforms with official public read-only job-board
-// APIs are supported (Greenhouse, Lever, Ashby). Before adding a company,
-// confirm its board handle resolves on the platform's public API and that
-// you are comfortable with that platform's terms of service. Workday and
-// other ATSes without a public listing API are intentionally unsupported.
-//
-// Example entries (verify the boardId before enabling — handles change):
-//
-// {
-//   companyId: 101,
-//   companyName: "Example Co",
-//   ats: "greenhouse",           // boards-api.greenhouse.io/v1/boards/<boardId>/jobs
-//   boardId: "exampleco",
-//   careersUrl: "https://example.com/careers",
-// },
-// {
-//   companyId: 102,
-//   companyName: "Example Two",
-//   ats: "lever",                // api.lever.co/v0/postings/<boardId>
-//   boardId: "example-two",
-//   careersUrl: "https://exampletwo.com/careers",
-// },
-// {
-//   companyId: 103,
-//   companyName: "Example Three",
-//   ats: "ashby",                // api.ashbyhq.com/posting-api/job-board/<boardId>
-//   boardId: "example-three",
-//   careersUrl: "https://examplethree.com/careers",
-// },
-export const DISCOVERY_SOURCES: DiscoverySource[] = [];
+// Production public job-board sources. Board handles were verified against
+// the official ATS APIs on 2026-07-27 and should be rechecked if a source
+// starts returning 404s. Discovery only reads public listings.
+export const DISCOVERY_SOURCES: DiscoverySource[] = [
+  {
+    companyId: 1,
+    companyName: "Stripe",
+    ats: "greenhouse",
+    boardId: "stripe",
+    careersUrl: "https://stripe.com/jobs/search",
+  },
+  {
+    companyId: 2,
+    companyName: "Linear",
+    ats: "ashby",
+    boardId: "linear",
+    careersUrl: "https://linear.app/careers",
+  },
+  {
+    companyId: 3,
+    companyName: "Figma",
+    ats: "greenhouse",
+    boardId: "figma",
+    careersUrl: "https://www.figma.com/careers/",
+  },
+  {
+    companyId: 4,
+    companyName: "Vercel",
+    ats: "greenhouse",
+    boardId: "vercel",
+    careersUrl: "https://vercel.com/careers",
+  },
+  {
+    companyId: 5,
+    companyName: "Ramp",
+    ats: "ashby",
+    boardId: "ramp",
+    careersUrl: "https://ramp.com/careers",
+  },
+];
